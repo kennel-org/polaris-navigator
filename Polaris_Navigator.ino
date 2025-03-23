@@ -11,11 +11,13 @@
 // Include necessary libraries
 #include <M5AtomS3.h>        // For AtomS3R
 #include <Wire.h>            // I2C communication
-#include <TinyGPS++.h>       // GPS parsing
 
 // IMU related
 #include "BMM150class.h"     // Magnetometer
 #include "BMI270.h"          // Accelerometer and Gyroscope
+
+// GPS related
+#include "AtomicBaseGPS.h"   // AtomicBase GPS module
 
 // Display related
 #include <FastLED.h>         // For LED control
@@ -29,7 +31,7 @@
 #define UPDATE_INTERVAL 500  // Main loop update interval in ms
 
 // Global variables
-TinyGPSPlus gps;             // GPS object
+AtomicBaseGPS gps;           // GPS object
 BMI270 bmi270;               // IMU object
 BMM150class bmm150;          // Magnetometer object
 
@@ -39,6 +41,7 @@ float longitude = 0.0;
 float altitude = 0.0;
 int satellites = 0;
 bool gpsValid = false;
+float hdop = 99.99;          // Horizontal dilution of precision
 
 // IMU data
 float heading = 0.0;         // Compass heading in degrees
@@ -140,30 +143,40 @@ void setupIMU() {
 }
 
 void setupGPS() {
-  // Initialize GPS on Serial2
-  Serial2.begin(GPS_BAUD);
-  Serial.println("GPS initialized");
+  // Initialize GPS module
+  if (gps.begin(GPS_BAUD)) {
+    Serial.println("GPS initialized");
+  } else {
+    Serial.println("Failed to initialize GPS!");
+  }
 }
 
 void readGPS() {
-  // Read data from GPS
-  while (Serial2.available() > 0) {
-    if (gps.encode(Serial2.read())) {
-      // Update GPS data if valid
-      if (gps.location.isValid()) {
-        latitude = gps.location.lat();
-        longitude = gps.location.lng();
-        gpsValid = true;
-      }
-      
-      if (gps.altitude.isValid()) {
-        altitude = gps.altitude.meters();
-      }
-      
-      if (gps.satellites.isValid()) {
-        satellites = gps.satellites.value();
-      }
-    }
+  // Update GPS data
+  gps.update();
+  
+  // Check if GPS data is valid
+  gpsValid = gps.isValid();
+  
+  if (gpsValid) {
+    // Update GPS variables
+    latitude = gps.getLatitude();
+    longitude = gps.getLongitude();
+    altitude = gps.getAltitude();
+    satellites = gps.getSatellites();
+    hdop = gps.getHDOP();
+    
+    // Debug output
+    Serial.print("GPS: ");
+    Serial.print(latitude, 6);
+    Serial.print(", ");
+    Serial.print(longitude, 6);
+    Serial.print(" Alt: ");
+    Serial.print(altitude);
+    Serial.print("m Sats: ");
+    Serial.print(satellites);
+    Serial.print(" HDOP: ");
+    Serial.println(hdop);
   }
 }
 
@@ -193,7 +206,14 @@ void updateDisplay() {
       break;
       
     case GPS_DATA:
-      // TODO: Display raw GPS data
+      // Display raw GPS data
+      if (gpsValid) {
+        // Green LED for valid GPS
+        M5.dis.drawpix(0, 0x00ff00);
+      } else {
+        // Red LED for invalid GPS
+        M5.dis.drawpix(0, 0xff0000);
+      }
       break;
       
     case IMU_DATA:
