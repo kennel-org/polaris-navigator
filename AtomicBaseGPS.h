@@ -30,23 +30,30 @@ public:
   void update();
   
   // Check if GPS data is valid
-  bool isValid();
+  bool isValid() const;
   
   // Get location data
-  float getLatitude();
-  float getLongitude();
-  float getAltitude();
+  float getLatitude() const;
+  float getLongitude() const;
+  float getAltitude() const;
   
   // Get quality indicators
-  int getSatellites();
-  float getHDOP();  // Horizontal Dilution of Precision
+  int getSatellites() const;
+  float getHDOP() const;  // Horizontal Dilution of Precision
   
   // Get time data
   bool getTime(int *hour, int *minute, int *second);
   bool getDate(int *year, int *month, int *day);
   
+  // Get speed and course
+  float getSpeed() const;  // Speed in km/h
+  float getCourse() const; // Course in degrees
+  
   // Get raw NMEA sentence (for debugging)
-  String getLastNMEA();
+  String getLastNMEA() const;
+  
+  // Get raw TinyGPS++ object for advanced usage
+  TinyGPSPlus* getRawGPS();
   
 private:
   TinyGPSPlus _gps;        // GPS parser
@@ -54,6 +61,15 @@ private:
   bool _isValid;           // Flag for valid GPS data
   unsigned long _lastValidFix; // Timestamp of last valid fix
   String _lastNMEA;        // Last NMEA sentence received
+  
+  // Cached data for faster access
+  float _latitude;
+  float _longitude;
+  float _altitude;
+  int _satellites;
+  float _hdop;
+  float _speed;
+  float _course;
 };
 
 #endif // ATOMIC_BASE_GPS_H

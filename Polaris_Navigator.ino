@@ -11,11 +11,14 @@
 // Include necessary libraries
 #include <M5AtomS3.h>        // For AtomS3R
 #include <Wire.h>            // I2C communication
-#include <TinyGPS++.h>       // GPS parsing
 
 // IMU related
 #include "BMM150class.h"     // Magnetometer
 #include "BMI270.h"          // Accelerometer and Gyroscope
+#include "IMUFusion.h"       // Sensor fusion
+
+// GPS related
+#include "AtomicBaseGPS.h"   // AtomicBase GPS module
 
 // Display related
 #include <FastLED.h>         // For LED control
@@ -26,7 +29,7 @@
 // Constants
 #define GPS_BAUD 9600        // GPS baud rate
 #define SERIAL_BAUD 115200   // Serial monitor baud rate
-#define UPDATE_INTERVAL 500  // Main loop update interval in ms
+#define UPDATE_INTERVAL 50   // Main loop update interval in ms
 
 // Global variables
 AtomicBaseGPS gps;           // GPS object
@@ -72,7 +75,8 @@ enum DisplayMode {
   POLAR_ALIGNMENT,
   GPS_DATA,
   IMU_DATA,
-  SETTINGS
+  SETTINGS,
+  CALIBRATION
 };
 
 DisplayMode currentMode = POLAR_ALIGNMENT;
@@ -86,6 +90,11 @@ void readIMU();
 void calculateCelestialPositions();
 void updateDisplay();
 void handleButtons();
+void calibrateIMU();
+
+// Timing variables
+unsigned long lastUpdateTime = 0;
+unsigned long lastDisplayTime = 0;
 
 void setup() {
   // Initialize hardware
@@ -97,10 +106,16 @@ void setup() {
   
   // Show welcome screen
   M5.dis.drawpix(0, 0x00ff00);  // Green LED to indicate ready
+  
+  // Initialize timing
+  lastUpdateTime = millis();
 }
 
 void loop() {
-  static unsigned long lastUpdate = 0;
+  // Calculate delta time for sensor fusion
+  unsigned long currentTime = millis();
+  float deltaTime = (currentTime - lastUpdateTime) / 1000.0f;  // Convert to seconds
+  lastUpdateTime = currentTime;
   
   // Update button state
   M5.update();
@@ -108,20 +123,21 @@ void loop() {
   // Handle button presses
   handleButtons();
   
-  // Update at specified interval
-  if (millis() - lastUpdate >= UPDATE_INTERVAL) {
-    lastUpdate = millis();
-    
-    // Read sensor data
-    readGPS();
-    readIMU();
-    
-    // Calculate celestial positions
-    if (gpsValid) {
-      calculateCelestialPositions();
-    }
-    
-    // Update display based on current mode
+  // Read sensor data and update fusion
+  readGPS();
+  readIMU();
+  
+  // Update sensor fusion
+  imuFusion.update(deltaTime);
+  
+  // Calculate celestial positions
+  if (gpsValid) {
+    calculateCelestialPositions();
+  }
+  
+  // Update display at specified interval
+  if (currentTime - lastDisplayTime >= UPDATE_INTERVAL) {
+    lastDisplayTime = currentTime;
     updateDisplay();
   }
 }
@@ -148,13 +164,22 @@ void setupIMU() {
     Serial.println("Failed to initialize BMM150!");
   }
   
+  // Initialize sensor fusion
+  imuFusion.begin();
+  
+  // Check if already calibrated
+  imuCalibrated = imuFusion.isCalibrated();
+  
   Serial.println("IMU initialized");
 }
 
 void setupGPS() {
-  // Initialize GPS on Serial2
-  Serial2.begin(GPS_BAUD);
-  Serial.println("GPS initialized");
+  // Initialize GPS module
+  if (gps.begin(GPS_BAUD)) {
+    Serial.println("GPS initialized");
+  } else {
+    Serial.println("Failed to initialize GPS!");
+  }
 }
 
 void readGPS() {
@@ -207,16 +232,18 @@ void readGPS() {
 }
 
 void readIMU() {
-  // Read IMU data
-  bmi270.readAcceleration();
-  bmi270.readGyro();
-  bmm150.readMagnetometer();
+  // Get orientation from sensor fusion
+  heading = imuFusion.getYaw();
+  pitch = imuFusion.getPitch();
+  roll = imuFusion.getRoll();
   
-  // Calculate orientation
-  // TODO: Implement sensor fusion algorithm
-  heading = 0.0;  // Placeholder
-  pitch = 0.0;    // Placeholder
-  roll = 0.0;     // Placeholder
+  // Debug output
+  Serial.print("Orientation: Heading=");
+  Serial.print(heading);
+  Serial.print(", Pitch=");
+  Serial.print(pitch);
+  Serial.print(", Roll=");
+  Serial.println(roll);
 }
 
 void calculateCelestialPositions() {
@@ -271,43 +298,103 @@ void updateDisplay() {
   // Update display based on current mode
   switch (currentMode) {
     case POLAR_ALIGNMENT:
-      // TODO: Display polar alignment information
+      // Display polar alignment information
+      if (gpsValid && imuCalibrated) {
+        // Green LED for ready state
+        M5.dis.drawpix(0, 0x00ff00);
+      } else if (!gpsValid && imuCalibrated) {
+        // Yellow LED for IMU ready but no GPS
+        M5.dis.drawpix(0, 0xffff00);
+      } else if (gpsValid && !imuCalibrated) {
+        // Blue LED for GPS ready but IMU not calibrated
+        M5.dis.drawpix(0, 0x0000ff);
+      } else {
+        // Red LED for neither ready
+        M5.dis.drawpix(0, 0xff0000);
+      }
       break;
       
     case GPS_DATA:
-      // TODO: Display raw GPS data
+      // Display raw GPS data
+      if (gpsValid) {
+        // Green LED for valid GPS
+        M5.dis.drawpix(0, 0x00ff00);
+      } else {
+        // Red LED for invalid GPS
+        M5.dis.drawpix(0, 0xff0000);
+      }
       break;
       
     case IMU_DATA:
-      // TODO: Display raw IMU data
+      // Display raw IMU data
+      if (imuCalibrated) {
+        // Green LED for calibrated IMU
+        M5.dis.drawpix(0, 0x00ff00);
+      } else {
+        // Yellow LED for uncalibrated IMU
+        M5.dis.drawpix(0, 0xffff00);
+      }
+      break;
+      
+    case CALIBRATION:
+      // Display calibration status
+      M5.dis.drawpix(0, 0x0000ff);  // Blue LED during calibration
       break;
       
     case SETTINGS:
-      // TODO: Display settings menu
+      // Display settings menu
+      M5.dis.drawpix(0, 0xff00ff);  // Purple LED for settings
       break;
   }
 }
 
 void handleButtons() {
-  // Handle button presses to change modes
+  // Handle button presses
   if (M5.Btn.wasPressed()) {
     // Cycle through display modes
-    currentMode = (DisplayMode)((currentMode + 1) % 4);
-    
-    // Indicate mode change with LED color
     switch (currentMode) {
       case POLAR_ALIGNMENT:
-        M5.dis.drawpix(0, 0x00ff00);  // Green
+        currentMode = GPS_DATA;
         break;
       case GPS_DATA:
-        M5.dis.drawpix(0, 0x0000ff);  // Blue
+        currentMode = IMU_DATA;
         break;
       case IMU_DATA:
-        M5.dis.drawpix(0, 0xff0000);  // Red
+        currentMode = SETTINGS;
         break;
       case SETTINGS:
-        M5.dis.drawpix(0, 0xffff00);  // Yellow
+        currentMode = POLAR_ALIGNMENT;
+        break;
+      case CALIBRATION:
+        // Exit calibration mode
+        currentMode = POLAR_ALIGNMENT;
         break;
     }
+    
+    Serial.print("Mode changed to: ");
+    Serial.println(currentMode);
   }
+  
+  // Handle long press for calibration
+  if (M5.Btn.pressedFor(2000) && currentMode != CALIBRATION) {
+    currentMode = CALIBRATION;
+    Serial.println("Entering calibration mode");
+    calibrateIMU();
+  }
+}
+
+void calibrateIMU() {
+  // Perform IMU calibration
+  Serial.println("Starting IMU calibration...");
+  
+  // Update display to show calibration mode
+  M5.dis.drawpix(0, 0x0000ff);  // Blue LED during calibration
+  
+  // Calibrate magnetometer
+  imuFusion.calibrateMagnetometer();
+  
+  // Update calibration status
+  imuCalibrated = imuFusion.isCalibrated();
+  
+  Serial.println("IMU calibration complete");
 }
