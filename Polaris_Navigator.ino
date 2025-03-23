@@ -24,6 +24,7 @@
 #include <FastLED.h>         // For LED control
 #include "CompassDisplay.h"  // Custom display interface
 #include "CelestialOverlay.h" // Celestial overlay
+#include "RawDataDisplay.h"  // Raw data display
 
 // Celestial calculations
 #include "celestial_math.h"  // Custom celestial calculations
@@ -39,6 +40,7 @@ BMI270 bmi270;               // IMU object
 BMM150class bmm150;          // Magnetometer object
 IMUFusion imuFusion(&bmi270, &bmm150); // Sensor fusion
 CompassDisplay display;      // Display object
+RawDataDisplay rawDisplay;   // Raw data display object
 
 // GPS data
 float latitude = 0.0;
@@ -78,12 +80,24 @@ enum DisplayMode {
   POLAR_ALIGNMENT,
   GPS_DATA,
   IMU_DATA,
+  CELESTIAL_DATA,
+  RAW_DATA,
   SETTINGS,
-  CALIBRATION,
-  CELESTIAL_DATA
+  CALIBRATION
 };
 
 DisplayMode currentMode = POLAR_ALIGNMENT;
+
+// Raw data mode
+enum RawDataMode {
+  RAW_IMU,
+  RAW_GPS,
+  RAW_CELESTIAL,
+  RAW_SYSTEM,
+  RAW_DEBUG
+};
+
+RawDataMode currentRawMode = RAW_IMU;
 
 // Function prototypes
 void setupHardware();
@@ -93,7 +107,10 @@ void readGPS();
 void readIMU();
 void calculateCelestialPositions();
 void updateDisplay();
-void handleButtons();
+void handleButtonPress();
+void cycleDisplayMode();
+void handleLongPress();
+void cycleRawDataMode();
 void calibrateIMU();
 
 // Timing variables
@@ -111,6 +128,9 @@ void setup() {
   // Initialize display
   display.begin();
   
+  // Initialize raw data display
+  rawDisplay.begin();
+  
   // Initialize timing
   lastUpdateTime = millis();
 }
@@ -125,7 +145,7 @@ void loop() {
   M5.update();
   
   // Handle button presses
-  handleButtons();
+  handleButtonPress();
   
   // Read sensor data and update fusion
   readGPS();
@@ -340,6 +360,39 @@ void updateDisplay() {
       }
       break;
       
+    case RAW_DATA:
+      // Display detailed raw sensor data
+      switch (currentRawMode) {
+        case RAW_IMU:
+          rawDisplay.showRawIMU(&bmi270, &bmm150, heading, pitch, roll, imuCalibrated);
+          break;
+          
+        case RAW_GPS:
+          rawDisplay.showRawGPS(&gps, latitude, longitude, altitude, 
+                               satellites, hdop, hour, minute, second, gpsValid);
+          break;
+          
+        case RAW_CELESTIAL:
+          rawDisplay.showRawCelestial(sunAz, sunAlt, moonAz, moonAlt, moonPhase, 
+                                     polarisAz, polarisAlt);
+          break;
+          
+        case RAW_SYSTEM:
+          // Get system information
+          float batteryLevel = M5.Power.getBatteryLevel();
+          float temperature = 0.0; // Placeholder for temperature sensor
+          unsigned long uptime = millis();
+          int freeMemory = ESP.getFreeHeap();
+          
+          rawDisplay.showSystemInfo(batteryLevel, temperature, uptime, freeMemory);
+          break;
+          
+        case RAW_DEBUG:
+          rawDisplay.showDebugInfo("Debug mode active");
+          break;
+      }
+      break;
+      
     case CALIBRATION:
       // Display calibration status
       display.showCalibration(0, 0.5); // Placeholder values
@@ -352,41 +405,128 @@ void updateDisplay() {
   }
 }
 
-void handleButtons() {
-  // Handle button presses
+void handleButtonPress() {
+  // Handle button press
   if (M5.Btn.wasPressed()) {
-    // Cycle through display modes
-    switch (currentMode) {
-      case POLAR_ALIGNMENT:
-        currentMode = GPS_DATA;
-        break;
-      case GPS_DATA:
-        currentMode = IMU_DATA;
-        break;
-      case IMU_DATA:
-        currentMode = CELESTIAL_DATA;
-        break;
-      case CELESTIAL_DATA:
-        currentMode = SETTINGS;
-        break;
-      case SETTINGS:
-        currentMode = POLAR_ALIGNMENT;
-        break;
-      case CALIBRATION:
-        // Exit calibration mode
-        currentMode = POLAR_ALIGNMENT;
-        break;
-    }
-    
-    Serial.print("Mode changed to: ");
-    Serial.println(currentMode);
+    // Short press - cycle through display modes
+    cycleDisplayMode();
+  } else if (M5.Btn.pressedFor(1000)) {
+    // Long press - perform mode-specific action
+    handleLongPress();
+  }
+}
+
+void cycleDisplayMode() {
+  // Cycle through display modes
+  switch (currentMode) {
+    case POLAR_ALIGNMENT:
+      currentMode = GPS_DATA;
+      break;
+    case GPS_DATA:
+      currentMode = IMU_DATA;
+      break;
+    case IMU_DATA:
+      currentMode = CELESTIAL_DATA;
+      break;
+    case CELESTIAL_DATA:
+      currentMode = RAW_DATA;
+      break;
+    case RAW_DATA:
+      currentMode = SETTINGS;
+      break;
+    case SETTINGS:
+      currentMode = CALIBRATION;
+      break;
+    case CALIBRATION:
+      currentMode = POLAR_ALIGNMENT;
+      break;
   }
   
-  // Handle long press for calibration
-  if (M5.Btn.pressedFor(2000) && currentMode != CALIBRATION) {
-    currentMode = CALIBRATION;
-    Serial.println("Entering calibration mode");
-    calibrateIMU();
+  // Update display
+  updateDisplay();
+}
+
+void handleLongPress() {
+  // Handle long press based on current mode
+  switch (currentMode) {
+    case POLAR_ALIGNMENT:
+      // Toggle detailed view
+      // TODO: Implement detailed view toggle
+      break;
+      
+    case GPS_DATA:
+      // Force GPS refresh
+      // TODO: Implement GPS refresh
+      break;
+      
+    case IMU_DATA:
+      // Toggle IMU calibration mode
+      // TODO: Implement IMU calibration toggle
+      break;
+      
+    case CELESTIAL_DATA:
+      // Toggle between sun and moon focus
+      // TODO: Implement celestial focus toggle
+      break;
+      
+    case RAW_DATA:
+      // Cycle through raw data modes
+      cycleRawDataMode();
+      break;
+      
+    case SETTINGS:
+      // Enter selected setting
+      // TODO: Implement settings selection
+      break;
+      
+    case CALIBRATION:
+      // Start/stop calibration process
+      // TODO: Implement calibration toggle
+      break;
+  }
+}
+
+void cycleRawDataMode() {
+  // Cycle through raw data modes
+  switch (currentRawMode) {
+    case RAW_IMU:
+      currentRawMode = RAW_GPS;
+      break;
+    case RAW_GPS:
+      currentRawMode = RAW_CELESTIAL;
+      break;
+    case RAW_CELESTIAL:
+      currentRawMode = RAW_SYSTEM;
+      break;
+    case RAW_SYSTEM:
+      currentRawMode = RAW_DEBUG;
+      break;
+    case RAW_DEBUG:
+      currentRawMode = RAW_IMU;
+      break;
+  }
+  
+  // Update display with new raw data mode
+  updateDisplay();
+  
+  // Provide feedback
+  Serial.print("Raw data mode: ");
+  switch (currentRawMode) {
+    case RAW_IMU:
+      Serial.println("IMU");
+      break;
+    case RAW_GPS:
+      Serial.println("GPS");
+      break;
+    case RAW_CELESTIAL:
+      Serial.println("CELESTIAL");
+      break;
+    case RAW_SYSTEM:
+      Serial.println("SYSTEM");
+      break;
+    case RAW_DEBUG:
+      Serial.println("DEBUG");
+      break;
   }
 }
 
