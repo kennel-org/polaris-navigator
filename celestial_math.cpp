@@ -318,3 +318,149 @@ void applyMagneticDeclination(float *heading, float declination) {
   while (*heading < 0) *heading += 360.0;
   while (*heading >= 360.0) *heading -= 360.0;
 }
+
+// Calculate sunrise and sunset times
+void calculateSunriseSunset(float latitude, float longitude, int year, int month, int day,
+                           int* sunriseHour, int* sunriseMinute, int* sunsetHour, int* sunsetMinute) {
+  // Simple approximation for sunrise/sunset times
+  // This is a placeholder - for accurate calculations, use a proper astronomical library
+  
+  // Convert date to day of year
+  int dayOfYear = 0;
+  for (int m = 1; m < month; m++) {
+    if (m == 2) {
+      dayOfYear += 28;
+      // Check for leap year
+      if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+        dayOfYear += 1;
+      }
+    } else if (m == 4 || m == 6 || m == 9 || m == 11) {
+      dayOfYear += 30;
+    } else {
+      dayOfYear += 31;
+    }
+  }
+  dayOfYear += day;
+  
+  // Calculate approximate sunrise/sunset times based on latitude and day of year
+  // This is a very simplified model
+  float latRad = latitude * PI / 180.0;
+  
+  // Approximate solar declination
+  float declination = 23.45 * sin(2.0 * PI * (284 + dayOfYear) / 365.0) * PI / 180.0;
+  
+  // Calculate day length in hours
+  float dayLength = 24.0 - (24.0 / PI) * acos((sin(-0.83 * PI / 180.0) - sin(latRad) * sin(declination)) / 
+                                            (cos(latRad) * cos(declination)));
+  
+  // Calculate noon time (solar noon)
+  float solarNoon = 12.0 - longitude / 15.0;
+  
+  // Calculate sunrise and sunset times
+  float sunrise = solarNoon - dayLength / 2.0;
+  float sunset = solarNoon + dayLength / 2.0;
+  
+  // Convert to hours and minutes
+  *sunriseHour = (int)sunrise;
+  *sunriseMinute = (int)((sunrise - *sunriseHour) * 60);
+  
+  *sunsetHour = (int)sunset;
+  *sunsetMinute = (int)((sunset - *sunsetHour) * 60);
+  
+  // Handle edge cases
+  if (*sunriseHour < 0) {
+    *sunriseHour += 24;
+  } else if (*sunriseHour >= 24) {
+    *sunriseHour -= 24;
+  }
+  
+  if (*sunsetHour < 0) {
+    *sunsetHour += 24;
+  } else if (*sunsetHour >= 24) {
+    *sunsetHour -= 24;
+  }
+}
+
+// Calculate moonrise and moonset times
+void calculateMoonriseMoonset(float latitude, float longitude, int year, int month, int day,
+                             int* moonriseHour, int* moonriseMinute, int* moonsetHour, int* moonsetMinute) {
+  // Simple approximation for moonrise/moonset times
+  // This is a placeholder - for accurate calculations, use a proper astronomical library
+  
+  // For this simple implementation, we'll offset from sunrise/sunset
+  // with a phase shift based on moon phase
+  int sunriseHour, sunriseMinute, sunsetHour, sunsetMinute;
+  calculateSunriseSunset(latitude, longitude, year, month, day, 
+                        &sunriseHour, &sunriseMinute, &sunsetHour, &sunsetMinute);
+  
+  // Get moon phase
+  float moonPhase = calculateMoonPhase(year, month, day);
+  
+  // Calculate offset in hours based on moon phase (0.0 to 1.0)
+  // This creates a full cycle over the lunar month
+  float phaseOffset = moonPhase * 24.0;
+  
+  // Convert sunrise/sunset to decimal hours
+  float sunriseDecimal = sunriseHour + sunriseMinute / 60.0;
+  float sunsetDecimal = sunsetHour + sunsetMinute / 60.0;
+  
+  // Calculate moonrise/moonset with offset
+  float moonriseDecimal = fmod(sunriseDecimal + phaseOffset, 24.0);
+  float moonsetDecimal = fmod(sunsetDecimal + phaseOffset, 24.0);
+  
+  // Convert back to hours and minutes
+  *moonriseHour = (int)moonriseDecimal;
+  *moonriseMinute = (int)((moonriseDecimal - *moonriseHour) * 60);
+  
+  *moonsetHour = (int)moonsetDecimal;
+  *moonsetMinute = (int)((moonsetDecimal - *moonsetHour) * 60);
+}
+
+// Calculate moon phase (0.0 to 1.0)
+float calculateMoonPhase(int year, int month, int day) {
+  // Simple approximation for moon phase
+  // This is a placeholder - for accurate calculations, use a proper astronomical library
+  
+  // Calculate approximate moon phase using a simple algorithm
+  // Based on a lunar cycle of 29.53 days
+  // Reference new moon: January 6, 2000
+  
+  // Convert date to days since reference
+  long totalDays = 0;
+  
+  // Add days for years
+  for (int y = 2000; y < year; y++) {
+    if ((y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)) {
+      totalDays += 366; // Leap year
+    } else {
+      totalDays += 365;
+    }
+  }
+  
+  // Add days for months in the current year
+  for (int m = 1; m < month; m++) {
+    if (m == 2) {
+      if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+        totalDays += 29; // February in leap year
+      } else {
+        totalDays += 28; // February in non-leap year
+      }
+    } else if (m == 4 || m == 6 || m == 9 || m == 11) {
+      totalDays += 30;
+    } else {
+      totalDays += 31;
+    }
+  }
+  
+  // Add days in the current month
+  totalDays += day;
+  
+  // Subtract reference date (January 6, 2000)
+  totalDays -= 6;
+  
+  // Calculate phase based on 29.53 day lunar cycle
+  // January 6, 2000 was a new moon
+  float phase = fmod(totalDays, 29.53) / 29.53;
+  
+  return phase;
+}
