@@ -65,7 +65,6 @@ void CelestialOverlay::updateCelestialData(float lat, float lon, int year, int m
   calculatePolarisPosition();
   calculateSunriseSunset();
   calculateMoonriseMoonset();
-  calculateMoonPhase();
 }
 
 // Get sun position
@@ -206,28 +205,28 @@ void CelestialOverlay::printCelestialData() {
   
   // Print moon phase name
   switch (getMoonPhaseEnum()) {
-    case NEW_MOON:
+    case NEW_MOON: // NEW_MOON
       Serial.print("New Moon");
       break;
-    case WAXING_CRESCENT:
+    case WAXING_CRESCENT: // WAXING_CRESCENT
       Serial.print("Waxing Crescent");
       break;
-    case FIRST_QUARTER:
+    case FIRST_QUARTER: // FIRST_QUARTER
       Serial.print("First Quarter");
       break;
-    case WAXING_GIBBOUS:
+    case WAXING_GIBBOUS: // WAXING_GIBBOUS
       Serial.print("Waxing Gibbous");
       break;
-    case FULL_MOON:
+    case FULL_MOON: // FULL_MOON
       Serial.print("Full Moon");
       break;
-    case WANING_GIBBOUS:
+    case WANING_GIBBOUS: // WANING_GIBBOUS
       Serial.print("Waning Gibbous");
       break;
-    case LAST_QUARTER:
+    case LAST_QUARTER: // LAST_QUARTER
       Serial.print("Last Quarter");
       break;
-    case WANING_CRESCENT:
+    case WANING_CRESCENT: // WANING_CRESCENT
       Serial.print("Waning Crescent");
       break;
   }
@@ -268,37 +267,33 @@ void CelestialOverlay::printCelestialData() {
 // Calculate sun position
 void CelestialOverlay::calculateSunPosition() {
   // Use celestial_math library to calculate sun position
-  calculateSunPosition(_latitude, _longitude, _year, _month, _day, _hour, _minute, _second, &_sunAzimuth, &_sunAltitude);
+  ::calculateSunPosition(_latitude, _longitude, _year, _month, _day, _hour, _minute, _second, &_sunAzimuth, &_sunAltitude);
 }
 
 // Calculate moon position
 void CelestialOverlay::calculateMoonPosition() {
   // Use celestial_math library to calculate moon position
-  calculateMoonPosition(_latitude, _longitude, _year, _month, _day, _hour, _minute, _second, &_moonAzimuth, &_moonAltitude);
+  float phase;
+  ::calculateMoonPosition(_latitude, _longitude, _year, _month, _day, _hour, _minute, _second, &_moonAzimuth, &_moonAltitude, &phase);
+  _moonPhase = phase;
 }
 
 // Calculate Polaris position
 void CelestialOverlay::calculatePolarisPosition() {
   // Use celestial_math library to calculate Polaris position
-  calculatePolarisPosition(_latitude, _longitude, _year, _month, _day, _hour, _minute, _second, &_polarisAzimuth, &_polarisAltitude);
+  ::calculatePolePosition(_latitude, _longitude, &_polarisAzimuth, &_polarisAltitude);
 }
 
 // Calculate sunrise and sunset times
 void CelestialOverlay::calculateSunriseSunset() {
   // Use celestial_math library to calculate sunrise and sunset
-  calculateSunriseSunset(_latitude, _longitude, _year, _month, _day, &_sunriseHour, &_sunriseMinute, &_sunsetHour, &_sunsetMinute);
+  ::calculateSunriseSunset(_latitude, _longitude, _year, _month, _day, &_sunriseHour, &_sunriseMinute, &_sunsetHour, &_sunsetMinute);
 }
 
 // Calculate moonrise and moonset times
 void CelestialOverlay::calculateMoonriseMoonset() {
   // Use celestial_math library to calculate moonrise and moonset
-  calculateMoonriseMoonset(_latitude, _longitude, _year, _month, _day, &_moonriseHour, &_moonriseMinute, &_moonsetHour, &_moonsetMinute);
-}
-
-// Calculate moon phase
-void CelestialOverlay::calculateMoonPhase() {
-  // Use celestial_math library to calculate moon phase
-  _moonPhase = calculateMoonPhase(_year, _month, _day);
+  ::calculateMoonriseMoonset(_latitude, _longitude, _year, _month, _day, &_moonriseHour, &_moonriseMinute, &_moonsetHour, &_moonsetMinute);
 }
 
 // Convert phase value to enum

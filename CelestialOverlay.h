@@ -11,19 +11,19 @@
 #ifndef CELESTIAL_OVERLAY_H
 #define CELESTIAL_OVERLAY_H
 
-#include <M5AtomS3.h>
+#include <M5Unified.h>
 #include "celestial_math.h"
 
 // Moon phase definitions
 enum MoonPhase {
-  NEW_MOON,
-  WAXING_CRESCENT,
-  FIRST_QUARTER,
-  WAXING_GIBBOUS,
-  FULL_MOON,
-  WANING_GIBBOUS,
-  LAST_QUARTER,
-  WANING_CRESCENT
+  NEW_MOON = 0,
+  WAXING_CRESCENT = 1,
+  FIRST_QUARTER = 2,
+  WAXING_GIBBOUS = 3,
+  FULL_MOON = 4,
+  WANING_GIBBOUS = 5,
+  LAST_QUARTER = 6,
+  WANING_CRESCENT = 7
 };
 
 class CelestialOverlay {
@@ -106,7 +106,6 @@ private:
   void calculatePolarisPosition();
   void calculateSunriseSunset();
   void calculateMoonriseMoonset();
-  void calculateMoonPhase();
   
   // Convert phase value to enum
   MoonPhase phaseValueToEnum(float phase);

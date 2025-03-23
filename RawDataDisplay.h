@@ -11,19 +11,11 @@
 #ifndef RAW_DATA_DISPLAY_H
 #define RAW_DATA_DISPLAY_H
 
-#include <M5AtomS3.h>
+#include <M5Unified.h>
 #include "BMI270.h"
 #include "BMM150class.h"
 #include "AtomicBaseGPS.h"
-
-// Raw data display modes
-enum RawDataMode {
-  RAW_IMU,         // Raw IMU data
-  RAW_GPS,         // Raw GPS data
-  RAW_CELESTIAL,   // Raw celestial calculations
-  RAW_SYSTEM,      // System information
-  RAW_DEBUG        // Debug information
-};
+#include "DisplayModes.h"
 
 class RawDataDisplay {
 public:
@@ -65,6 +57,9 @@ public:
   
   // Set LED color based on data quality
   void setDataQualityIndicator(float quality);
+  
+  // Set LED color for AtomS3R
+  void setPixelColor(uint32_t color);
   
 private:
   // Helper methods
