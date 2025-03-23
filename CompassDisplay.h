@@ -13,6 +13,7 @@
 
 #include <M5AtomS3.h>
 #include <FastLED.h>
+#include "CelestialOverlay.h"
 
 // Display modes
 enum DisplayMode {
@@ -59,6 +60,10 @@ public:
   // Display celestial data
   void showCelestialData(float sunAz, float sunAlt, float moonAz, float moonAlt, float moonPhase);
   
+  // Enhanced celestial display with overlay
+  void showCelestialOverlay(float heading, float latitude, float longitude,
+                           int year, int month, int day, int hour, int minute, int second);
+  
   // Display settings
   void showSettings();
   
@@ -81,9 +86,16 @@ private:
   void pulsePixel(uint32_t color, int duration);
   void rotatePixel(uint32_t color, int duration, int direction);
   
+  // Celestial overlay helper
+  void updateCelestialOverlay(float latitude, float longitude,
+                             int year, int month, int day, int hour, int minute, int second);
+  
   // State variables
   uint32_t _currentColor;
   unsigned long _lastAnimationTime;
+  
+  // Celestial overlay
+  CelestialOverlay _celestialOverlay;
 };
 
 #endif // COMPASS_DISPLAY_H

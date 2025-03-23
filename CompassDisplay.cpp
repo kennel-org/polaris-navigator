@@ -22,6 +22,9 @@ void CompassDisplay::begin() {
   M5.dis.begin();
   M5.dis.clear();
   
+  // Initialize celestial overlay
+  _celestialOverlay.begin();
+  
   // Show welcome animation
   showWelcome();
 }
@@ -223,6 +226,99 @@ void CompassDisplay::showCelestialData(float sunAz, float sunAlt, float moonAz, 
   Serial.print(moonAlt);
   Serial.print(", MoonPhase=");
   Serial.println(moonPhase);
+}
+
+// Enhanced celestial display with overlay
+void CompassDisplay::showCelestialOverlay(float heading, float latitude, float longitude,
+                                        int year, int month, int day, int hour, int minute, int second) {
+  // Update celestial overlay data
+  updateCelestialOverlay(latitude, longitude, year, month, day, hour, minute, second);
+  
+  // Get celestial positions
+  float sunAz, sunAlt, moonAz, moonAlt, polarisAz, polarisAlt;
+  _celestialOverlay.getSunPosition(&sunAz, &sunAlt);
+  _celestialOverlay.getMoonPosition(&moonAz, &moonAlt);
+  _celestialOverlay.getPolarisPosition(&polarisAz, &polarisAlt);
+  
+  // Get moon phase
+  float moonPhase = _celestialOverlay.getMoonPhase();
+  MoonPhase moonPhaseEnum = _celestialOverlay.getMoonPhaseEnum();
+  int moonIllumination = _celestialOverlay.getMoonIllumination();
+  
+  // Calculate relative positions to current heading
+  float relSunAz = sunAz - heading;
+  float relMoonAz = moonAz - heading;
+  float relPolarisAz = polarisAz - heading;
+  
+  // Normalize to -180 to 180 degrees
+  while (relSunAz > 180) relSunAz -= 360;
+  while (relSunAz < -180) relSunAz += 360;
+  
+  while (relMoonAz > 180) relMoonAz -= 360;
+  while (relMoonAz < -180) relMoonAz += 360;
+  
+  while (relPolarisAz > 180) relPolarisAz -= 360;
+  while (relPolarisAz < -180) relPolarisAz += 360;
+  
+  // Determine which celestial object to highlight based on visibility and importance
+  if (polarisAlt > 0) {
+    // Polaris is visible - primary focus for polar alignment
+    uint32_t polarisColor = getAlignmentColor(fabs(relPolarisAz));
+    pulsePixel(polarisColor, 1000);
+  } else if (sunAlt > 0) {
+    // Sun is visible - show sun position
+    // Map relative azimuth (-180 to 180) to hue (0 to 255)
+    uint8_t hue = map(int(relSunAz + 180), 0, 360, 0, 255);
+    
+    // Create color from HSV with yellow base
+    uint32_t sunColor = 0xFFFF00; // Yellow
+    pulsePixel(sunColor, 1000);
+  } else if (moonAlt > 0) {
+    // Moon is visible - show moon position and phase
+    // Map relative azimuth (-180 to 180) to hue (0 to 255)
+    uint8_t hue = map(int(relMoonAz + 180), 0, 360, 0, 255);
+    
+    // Create color based on moon phase
+    uint32_t moonColor;
+    switch (moonPhaseEnum) {
+      case NEW_MOON:
+        moonColor = 0x202020; // Very dark
+        break;
+      case WAXING_CRESCENT:
+      case WANING_CRESCENT:
+        moonColor = 0x404080; // Dark blue
+        break;
+      case FIRST_QUARTER:
+      case LAST_QUARTER:
+        moonColor = 0x8080A0; // Medium blue
+        break;
+      case WAXING_GIBBOUS:
+      case WANING_GIBBOUS:
+        moonColor = 0xA0A0C0; // Light blue
+        break;
+      case FULL_MOON:
+        moonColor = 0xE0E0FF; // Bright blue-white
+        break;
+    }
+    
+    pulsePixel(moonColor, 1000);
+  } else {
+    // Nothing visible - show night sky
+    setPixelColor(0x000040); // Dark blue
+  }
+  
+  // Debug output
+  Serial.println("Celestial Overlay:");
+  _celestialOverlay.printCelestialData();
+  Serial.print("Current Heading: ");
+  Serial.println(heading);
+}
+
+// Celestial overlay helper
+void CompassDisplay::updateCelestialOverlay(float latitude, float longitude,
+                                          int year, int month, int day, int hour, int minute, int second) {
+  // Update celestial overlay with current location and time
+  _celestialOverlay.updateCelestialData(latitude, longitude, year, month, day, hour, minute, second);
 }
 
 // Display settings

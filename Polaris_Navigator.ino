@@ -23,6 +23,7 @@
 // Display related
 #include <FastLED.h>         // For LED control
 #include "CompassDisplay.h"  // Custom display interface
+#include "CelestialOverlay.h" // Celestial overlay
 
 // Celestial calculations
 #include "celestial_math.h"  // Custom celestial calculations
@@ -324,8 +325,19 @@ void updateDisplay() {
       break;
       
     case CELESTIAL_DATA:
-      // Display celestial data
-      display.showCelestialData(sunAz, sunAlt, moonAz, moonAlt, moonPhase);
+      // Display celestial data with enhanced overlay
+      if (gpsValid) {
+        // Get current date and time from GPS
+        int year, month, day;
+        gps.getDate(&year, &month, &day);
+        
+        // Show celestial overlay with current position and time
+        display.showCelestialOverlay(heading, latitude, longitude, 
+                                    year, month, day, hour, minute, second);
+      } else {
+        // Fallback to basic celestial data display
+        display.showCelestialData(sunAz, sunAlt, moonAz, moonAlt, moonPhase);
+      }
       break;
       
     case CALIBRATION:

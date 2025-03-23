@@ -28,6 +28,17 @@ void calculateMoonPosition(float latitude, float longitude,
                            int hour, int minute, int second,
                            float *azimuth, float *altitude, float *phase);
 
+// Sunrise and sunset calculations
+void calculateSunriseSunset(float latitude, float longitude, int year, int month, int day,
+                           int* sunriseHour, int* sunriseMinute, int* sunsetHour, int* sunsetMinute);
+
+// Moonrise and moonset calculations
+void calculateMoonriseMoonset(float latitude, float longitude, int year, int month, int day,
+                             int* moonriseHour, int* moonriseMinute, int* moonsetHour, int* moonsetMinute);
+
+// Moon phase calculations
+float calculateMoonPhase(int year, int month, int day);
+
 // Utility functions
 float calculateMagneticDeclination(float latitude, float longitude);
 void applyMagneticDeclination(float *heading, float declination);
