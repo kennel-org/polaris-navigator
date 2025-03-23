@@ -18,9 +18,8 @@ CompassDisplay::CompassDisplay() {
 
 // Initialize display
 void CompassDisplay::begin() {
-  // Initialize display
-  M5.dis.begin();
-  M5.dis.clear();
+  // M5Unifiedでは、ディスプレイの初期化はM5.begin()で行われるため、
+  // 個別の初期化は不要です
   
   // Initialize celestial overlay
   _celestialOverlay.begin();
@@ -30,10 +29,10 @@ void CompassDisplay::begin() {
 }
 
 // Update display based on current mode
-void CompassDisplay::update(DisplayMode mode, bool gpsValid, bool imuCalibrated) {
+void CompassDisplay::update(int mode, bool gpsValid, bool imuCalibrated) {
   // Update display based on current mode
   switch (mode) {
-    case POLAR_ALIGNMENT:
+    case 0: // POLAR_ALIGNMENT
       // Basic status indicator for now
       if (gpsValid && imuCalibrated) {
         // Green LED for ready state
@@ -50,7 +49,7 @@ void CompassDisplay::update(DisplayMode mode, bool gpsValid, bool imuCalibrated)
       }
       break;
       
-    case GPS_DATA:
+    case 1: // GPS_DATA
       // Basic status indicator for GPS data
       if (gpsValid) {
         // Green LED for valid GPS
@@ -61,7 +60,7 @@ void CompassDisplay::update(DisplayMode mode, bool gpsValid, bool imuCalibrated)
       }
       break;
       
-    case IMU_DATA:
+    case 2: // IMU_DATA
       // Basic status indicator for IMU data
       if (imuCalibrated) {
         // Green LED for calibrated IMU
@@ -72,17 +71,17 @@ void CompassDisplay::update(DisplayMode mode, bool gpsValid, bool imuCalibrated)
       }
       break;
       
-    case CELESTIAL_DATA:
+    case 3: // CELESTIAL_DATA
       // Cyan for celestial data
       setPixelColor(COLOR_CYAN);
       break;
       
-    case CALIBRATION:
+    case 4: // CALIBRATION
       // Blue LED during calibration
       setPixelColor(COLOR_BLUE);
       break;
       
-    case SETTINGS:
+    case 5: // SETTINGS
       // Purple LED for settings
       setPixelColor(COLOR_PURPLE);
       break;
@@ -388,23 +387,19 @@ void CompassDisplay::showError(const char* message) {
 }
 
 // Helper methods
-uint32_t CompassDisplay::getAlignmentColor(float angleDiff) {
-  // Return color based on alignment accuracy
-  if (angleDiff < 1.0) {
-    return COLOR_GREEN;  // Very accurate
-  } else if (angleDiff < 5.0) {
-    return 0x80FF00;     // Good
-  } else if (angleDiff < 10.0) {
-    return COLOR_YELLOW; // Acceptable
-  } else if (angleDiff < 20.0) {
-    return 0xFF8000;     // Poor
-  } else {
-    return COLOR_RED;    // Bad
-  }
-}
 
+// Set LED color
 void CompassDisplay::setPixelColor(uint32_t color) {
-  M5.dis.drawpix(0, color);
+  // AtomS3RのLEDを制御
+  // M5Unifiedでは、LEDの制御方法が変わります
+  // AtomS3Rの場合、LCDを使用して色を表示します
+  uint8_t r = (color >> 16) & 0xFF;
+  uint8_t g = (color >> 8) & 0xFF;
+  uint8_t b = color & 0xFF;
+  
+  // AtomS3Rの内蔵LEDを設定
+  M5.Lcd.fillScreen(color);  // 画面全体を指定色で塗りつぶす
+  
   _currentColor = color;
 }
 
@@ -465,5 +460,20 @@ void CompassDisplay::rotatePixel(uint32_t color, int duration, int direction) {
     } else {
       setPixelColor(COLOR_BLACK);
     }
+  }
+}
+
+uint32_t CompassDisplay::getAlignmentColor(float angleDiff) {
+  // Return color based on alignment accuracy
+  if (angleDiff < 1.0) {
+    return COLOR_GREEN;  // Very accurate
+  } else if (angleDiff < 5.0) {
+    return 0x80FF00;     // Good
+  } else if (angleDiff < 10.0) {
+    return COLOR_YELLOW; // Acceptable
+  } else if (angleDiff < 20.0) {
+    return 0xFF8000;     // Poor
+  } else {
+    return COLOR_RED;    // Bad
   }
 }

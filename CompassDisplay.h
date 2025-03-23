@@ -1,8 +1,8 @@
 /*
  * CompassDisplay.h
  * 
- * Display interface for the Polaris Navigator
- * Handles rendering compass and alignment information on AtomS3R display
+ * Compass display interface for the Polaris Navigator
+ * Handles display of compass heading and celestial objects
  * 
  * Created: 2025-03-23
  * GitHub: https://github.com/kennel-org/polaris-navigator
@@ -11,19 +11,10 @@
 #ifndef COMPASS_DISPLAY_H
 #define COMPASS_DISPLAY_H
 
-#include <M5AtomS3.h>
-#include <FastLED.h>
+#include <M5Unified.h>
+// #include <FastLED.h>
 #include "CelestialOverlay.h"
-
-// Display modes
-enum DisplayMode {
-  POLAR_ALIGNMENT,  // Main compass display for polar alignment
-  GPS_DATA,         // GPS data display
-  IMU_DATA,         // IMU data display
-  CELESTIAL_DATA,   // Celestial body data
-  SETTINGS,         // Settings menu
-  CALIBRATION       // Calibration mode
-};
+#include "DisplayModes.h"
 
 // Color definitions
 #define COLOR_RED    0xFF0000
@@ -44,7 +35,7 @@ public:
   void begin();
   
   // Update display based on current mode
-  void update(DisplayMode mode, bool gpsValid, bool imuCalibrated);
+  void update(int mode, bool gpsValid, bool imuCalibrated);
   
   // Display polar alignment compass
   void showPolarAlignment(float heading, float polarisAz, float polarisAlt, 

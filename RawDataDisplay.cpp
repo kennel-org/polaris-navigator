@@ -30,19 +30,19 @@ void RawDataDisplay::update(RawDataMode mode) {
   // Update LED based on mode
   switch (mode) {
     case RAW_IMU:
-      M5.dis.drawpix(0, 0x0000FF); // Blue for IMU
+      setPixelColor(0x0000FF); // Blue for IMU
       break;
     case RAW_GPS:
-      M5.dis.drawpix(0, 0x00FF00); // Green for GPS
+      setPixelColor(0x00FF00); // Green for GPS
       break;
     case RAW_CELESTIAL:
-      M5.dis.drawpix(0, 0xFF00FF); // Purple for Celestial
+      setPixelColor(0xFF00FF); // Purple for Celestial
       break;
     case RAW_SYSTEM:
-      M5.dis.drawpix(0, 0xFFFF00); // Yellow for System
+      setPixelColor(0xFFFF00); // Yellow for System
       break;
-    case RAW_DEBUG:
-      M5.dis.drawpix(0, 0xFF0000); // Red for Debug
+    case RAW_DEBUG_MODE:
+      setPixelColor(0xFF0000); // Red for Debug
       break;
   }
 }
@@ -56,9 +56,9 @@ void RawDataDisplay::showRawIMU(BMI270* bmi270, BMM150class* bmm150,
   
   // Update LED based on calibration status
   if (calibrated) {
-    M5.dis.drawpix(0, 0x0000FF); // Blue for calibrated
+    setPixelColor(0x0000FF); // Blue for calibrated
   } else {
-    M5.dis.drawpix(0, 0xFF00FF); // Purple for uncalibrated
+    setPixelColor(0xFF00FF); // Purple for uncalibrated
   }
   
   // Print formatted data
@@ -81,7 +81,10 @@ void RawDataDisplay::showRawIMU(BMI270* bmi270, BMM150class* bmm150,
   // Print raw accelerometer data if in detailed view
   if (_detailedView) {
     float accX, accY, accZ;
-    bmi270->getAcceleration(&accX, &accY, &accZ);
+    bmi270->readAcceleration();
+    accX = bmi270->acc_x;
+    accY = bmi270->acc_y;
+    accZ = bmi270->acc_z;
     
     Serial.println("=== ACCELEROMETER ===");
     Serial.print("X: ");
@@ -98,7 +101,10 @@ void RawDataDisplay::showRawIMU(BMI270* bmi270, BMM150class* bmm150,
     
     // Print raw gyroscope data
     float gyrX, gyrY, gyrZ;
-    bmi270->getGyroscope(&gyrX, &gyrY, &gyrZ);
+    bmi270->readGyro();
+    gyrX = bmi270->gyr_x;
+    gyrY = bmi270->gyr_y;
+    gyrZ = bmi270->gyr_z;
     
     Serial.println("=== GYROSCOPE ===");
     Serial.print("X: ");
@@ -115,7 +121,10 @@ void RawDataDisplay::showRawIMU(BMI270* bmi270, BMM150class* bmm150,
     
     // Print raw magnetometer data
     float magX, magY, magZ;
-    bmm150->getMagnetometer(&magX, &magY, &magZ);
+    bmm150->readMagnetometer();
+    magX = bmm150->mag_x;
+    magY = bmm150->mag_y;
+    magZ = bmm150->mag_z;
     
     Serial.println("=== MAGNETOMETER ===");
     Serial.print("X: ");
@@ -143,9 +152,9 @@ void RawDataDisplay::showRawGPS(AtomicBaseGPS* gps,
   
   // Update LED based on GPS validity
   if (valid) {
-    M5.dis.drawpix(0, 0x00FF00); // Green for valid
+    setPixelColor(0x00FF00); // Green for valid
   } else {
-    M5.dis.drawpix(0, 0xFF0000); // Red for invalid
+    setPixelColor(0xFF0000); // Red for invalid
   }
   
   // Print formatted data
@@ -213,9 +222,9 @@ void RawDataDisplay::showRawCelestial(float sunAz, float sunAlt,
   
   // Update LED based on Polaris visibility
   if (polarisAlt > 0) {
-    M5.dis.drawpix(0, 0x00FFFF); // Cyan for visible Polaris
+    setPixelColor(0x00FFFF); // Cyan for visible Polaris
   } else {
-    M5.dis.drawpix(0, 0xFF00FF); // Purple for invisible Polaris
+    setPixelColor(0xFF00FF); // Purple for invisible Polaris
   }
   
   // Print formatted data
@@ -264,67 +273,36 @@ void RawDataDisplay::showRawCelestial(float sunAz, float sunAlt,
 
 // Display system information
 void RawDataDisplay::showSystemInfo(float batteryLevel, float temperature, 
-                                  unsigned long uptime, int freeMemory) {
+                                   unsigned long uptime, int freeMemory) {
   // Print system information to serial
   printSystemInfo(batteryLevel, temperature, uptime, freeMemory);
   
-  // Update LED based on battery level
-  if (batteryLevel > 75) {
-    M5.dis.drawpix(0, 0x00FF00); // Green for good battery
-  } else if (batteryLevel > 25) {
-    M5.dis.drawpix(0, 0xFFFF00); // Yellow for medium battery
-  } else {
-    M5.dis.drawpix(0, 0xFF0000); // Red for low battery
-  }
+  // AtomS3Rはバッテリーを内蔵していないため、電源状態の表示は省略
+  // 代わりに常に緑色のLEDを表示
+  setPixelColor(0x00FF00); // Green
   
-  // Print formatted data
-  Serial.println("=== SYSTEM INFO ===");
+  // Format and display data
+  char buffer[32];
   
-  Serial.print("Battery: ");
-  Serial.print(batteryLevel, 1);
-  Serial.println("%");
+  Serial.println("\n=== SYSTEM INFO ===");
   
-  Serial.print("Temperature: ");
+  // AtomS3Rはバッテリーを内蔵していないため、この情報は表示しない
+  // Serial.print("Battery: ");
+  // Serial.print(batteryLevel, 1);
+  // Serial.println("%");
+  
+  // BMI270の内部温度センサーから取得した値または固定値
+  Serial.print("Temp: ");
   Serial.print(temperature, 1);
-  Serial.println(" C");
-  
-  // Format uptime
-  unsigned long seconds = uptime / 1000;
-  unsigned long minutes = seconds / 60;
-  unsigned long hours = minutes / 60;
-  
-  seconds %= 60;
-  minutes %= 60;
+  Serial.println("°C");
   
   Serial.print("Uptime: ");
-  Serial.print(hours);
-  Serial.print("h ");
-  Serial.print(minutes);
-  Serial.print("m ");
-  Serial.print(seconds);
-  Serial.println("s");
+  formatTimeValue(buffer, uptime / 3600000, (uptime / 60000) % 60, (uptime / 1000) % 60);
+  Serial.println(buffer);
   
-  Serial.print("Free Memory: ");
+  Serial.print("Free Mem: ");
   Serial.print(freeMemory);
   Serial.println(" bytes");
-  
-  // Print more detailed system info if in detailed view
-  if (_detailedView) {
-    Serial.println("=== DETAILED SYSTEM INFO ===");
-    
-    // Print firmware version
-    Serial.print("Firmware: ");
-    Serial.println("Polaris Navigator v1.0");
-    
-    // Print hardware info
-    Serial.println("Hardware: AtomS3R with AtomicBase GPS");
-    
-    // Print compilation date and time
-    Serial.print("Compiled: ");
-    Serial.print(__DATE__);
-    Serial.print(" ");
-    Serial.println(__TIME__);
-  }
 }
 
 // Display debug information
@@ -334,11 +312,11 @@ void RawDataDisplay::showDebugInfo(const char* debugMessage) {
   Serial.println(debugMessage);
   
   // Flash LED to indicate debug mode
-  M5.dis.drawpix(0, 0xFF0000); // Red
+  setPixelColor(0xFF0000); // Red
   delay(100);
-  M5.dis.drawpix(0, 0x000000); // Off
+  setPixelColor(0x000000); // Off
   delay(100);
-  M5.dis.drawpix(0, 0xFF0000); // Red
+  setPixelColor(0xFF0000); // Red
 }
 
 // Toggle detailed view
@@ -369,7 +347,20 @@ void RawDataDisplay::setDataQualityIndicator(float quality) {
   }
   
   uint32_t color = (red << 16) | (green << 8);
-  M5.dis.drawpix(0, color);
+  setPixelColor(color);
+}
+
+// Set LED color
+void RawDataDisplay::setPixelColor(uint32_t color) {
+  // AtomS3RのLEDを制御
+  // M5Unifiedでは、LEDの制御方法が変わります
+  // AtomS3Rの場合、LCDを使用して色を表示します
+  uint8_t r = (color >> 16) & 0xFF;
+  uint8_t g = (color >> 8) & 0xFF;
+  uint8_t b = color & 0xFF;
+  
+  // AtomS3Rの内蔵LEDを設定
+  M5.Lcd.fillScreen(color);  // 画面全体を指定色で塗りつぶす
 }
 
 // Helper methods
@@ -411,13 +402,21 @@ void RawDataDisplay::formatCoordinateValue(char* buffer, float value, bool isLat
 
 void RawDataDisplay::printRawIMUData(BMI270* bmi270, BMM150class* bmm150) {
   // Print raw IMU data to serial in CSV format for logging
-  float accX, accY, accZ;
-  float gyrX, gyrY, gyrZ;
-  float magX, magY, magZ;
+  // Read accelerometer and gyroscope data
+  bmi270->readAcceleration();
+  bmi270->readGyro();
+  float accX = bmi270->acc_x;
+  float accY = bmi270->acc_y;
+  float accZ = bmi270->acc_z;
+  float gyrX = bmi270->gyr_x;
+  float gyrY = bmi270->gyr_y;
+  float gyrZ = bmi270->gyr_z;
   
-  bmi270->getAcceleration(&accX, &accY, &accZ);
-  bmi270->getGyroscope(&gyrX, &gyrY, &gyrZ);
-  bmm150->getMagnetometer(&magX, &magY, &magZ);
+  // Read magnetometer data
+  bmm150->readMagnetometer();
+  float magX = bmm150->mag_x;
+  float magY = bmm150->mag_y;
+  float magZ = bmm150->mag_z;
   
   Serial.print("RAW_IMU,");
   Serial.print(accX, 4); Serial.print(",");

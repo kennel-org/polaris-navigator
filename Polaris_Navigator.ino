@@ -9,8 +9,8 @@
  */
 
 // Include necessary libraries
-#include <M5AtomS3.h>        // For AtomS3R
-#include <Wire.h>            // I2C communication
+#include <M5Unified.h>      // For AtomS3R
+// #include <Wire.h>        // I2C communication - M5Unifiedに含まれるため不要
 
 // IMU related
 #include "BMM150class.h"     // Magnetometer
@@ -21,13 +21,19 @@
 #include "AtomicBaseGPS.h"   // AtomicBase GPS module
 
 // Display related
-#include <FastLED.h>         // For LED control
+// #include <FastLED.h>         // For LED control
 #include "CompassDisplay.h"  // Custom display interface
 #include "CelestialOverlay.h" // Celestial overlay
 #include "RawDataDisplay.h"  // Raw data display
+#include "DisplayModes.h"    // Display mode definitions
 
 // Celestial calculations
 #include "celestial_math.h"  // Custom celestial calculations
+
+// Calibration and Settings
+#include "CalibrationManager.h" // Sensor calibration
+#include "SettingsManager.h"    // User settings
+#include "SettingsMenu.h"       // Settings menu interface
 
 // Constants
 #define GPS_BAUD 9600        // GPS baud rate
@@ -41,6 +47,9 @@ BMM150class bmm150;          // Magnetometer object
 IMUFusion imuFusion(&bmi270, &bmm150); // Sensor fusion
 CompassDisplay display;      // Display object
 RawDataDisplay rawDisplay;   // Raw data display object
+CalibrationManager calibrationManager(&bmi270, &bmm150); // Calibration manager
+SettingsManager settingsManager;  // Settings manager
+SettingsMenu settingsMenu(&settingsManager); // Settings menu
 
 // GPS data
 float latitude = 0.0;
@@ -76,27 +85,7 @@ float moonPhase = 0.0;       // Moon phase (0-1)
 float magDeclination = 0.0;  // Magnetic declination
 
 // UI state
-enum DisplayMode {
-  POLAR_ALIGNMENT,
-  GPS_DATA,
-  IMU_DATA,
-  CELESTIAL_DATA,
-  RAW_DATA,
-  SETTINGS,
-  CALIBRATION
-};
-
 DisplayMode currentMode = POLAR_ALIGNMENT;
-
-// Raw data mode
-enum RawDataMode {
-  RAW_IMU,
-  RAW_GPS,
-  RAW_CELESTIAL,
-  RAW_SYSTEM,
-  RAW_DEBUG
-};
-
 RawDataMode currentRawMode = RAW_IMU;
 
 // Function prototypes
@@ -112,6 +101,20 @@ void cycleDisplayMode();
 void handleLongPress();
 void cycleRawDataMode();
 void calibrateIMU();
+
+// Get temperature from internal sensor
+float getTemperature() {
+  // AtomS3Rには専用の温度センサーが内蔵されていないため、
+  // BMI270の内部温度センサーを使用するか、固定値を返す
+  // 注意: BMI270の温度センサーはチップ温度を測定するもので、
+  // 環境温度の正確な測定には適していません
+  
+  // 現在は仮の実装として固定値を返す
+  return 25.0f; // 仮の温度値（摂氏）
+  
+  // BMI270から温度を取得する場合は以下のようになる
+  // return bmi270.getTemperature();
+}
 
 // Timing variables
 unsigned long lastUpdateTime = 0;
@@ -130,6 +133,13 @@ void setup() {
   
   // Initialize raw data display
   rawDisplay.begin();
+  
+  // Initialize calibration manager
+  calibrationManager.begin();
+  
+  // Initialize settings manager and menu
+  settingsManager.begin();
+  settingsMenu.begin();
   
   // Initialize timing
   lastUpdateTime = millis();
@@ -168,14 +178,19 @@ void loop() {
 
 void setupHardware() {
   // Initialize AtomS3R
-  M5.begin(true, true, false);  // Enable display, enable power, disable serial
-  Serial.begin(SERIAL_BAUD);    // Start serial for debugging
+  auto cfg = M5.config();
+  cfg.serial_baudrate = SERIAL_BAUD;  // シリアル通信のボーレート設定
+  cfg.clear_display = true;           // ディスプレイをクリア
+  cfg.output_power = true;            // 電源出力を有効化
+  M5.begin(cfg);                      // M5Unifiedの初期化
   
   Serial.println("Polaris Navigator initializing...");
 }
 
 void setupIMU() {
   // Initialize IMU sensors
+  // M5Unifiedでは通常Wire.beginは不要ですが、
+  // AtomS3Rの特定のピンでI2Cを初期化する必要がある場合は以下を使用
   Wire.begin(38, 39);  // SDA, SCL pins for AtomS3R
   
   // Initialize BMI270
@@ -191,8 +206,15 @@ void setupIMU() {
   // Initialize sensor fusion
   imuFusion.begin();
   
-  // Check if already calibrated
-  imuCalibrated = imuFusion.isCalibrated();
+  // Try to load calibration data
+  if (calibrationManager.loadCalibrationData()) {
+    Serial.println("Loaded saved calibration data");
+    calibrationManager.applyCalibration();
+    imuCalibrated = true;
+  } else {
+    Serial.println("No saved calibration data found");
+    imuCalibrated = false;
+  }
   
   Serial.println("IMU initialized");
 }
@@ -324,7 +346,7 @@ void updateDisplay() {
   
   // Display specific information based on current mode
   switch (currentMode) {
-    case POLAR_ALIGNMENT:
+    case POLAR_ALIGNMENT: 
       // Display polar alignment information
       if (gpsValid && imuCalibrated) {
         // Show polar alignment compass
@@ -332,19 +354,19 @@ void updateDisplay() {
       }
       break;
       
-    case GPS_DATA:
+    case GPS_DATA: 
       // Display raw GPS data
       if (gpsValid) {
         display.showGPSData(latitude, longitude, altitude, satellites, hdop, hour, minute);
       }
       break;
       
-    case IMU_DATA:
+    case IMU_DATA: 
       // Display raw IMU data
       display.showIMUData(heading, pitch, roll);
       break;
       
-    case CELESTIAL_DATA:
+    case CELESTIAL_DATA: 
       // Display celestial data with enhanced overlay
       if (gpsValid) {
         // Get current date and time from GPS
@@ -360,57 +382,87 @@ void updateDisplay() {
       }
       break;
       
-    case RAW_DATA:
+    case RAW_DATA: 
       // Display detailed raw sensor data
       switch (currentRawMode) {
-        case RAW_IMU:
+        case RAW_IMU: 
           rawDisplay.showRawIMU(&bmi270, &bmm150, heading, pitch, roll, imuCalibrated);
           break;
           
-        case RAW_GPS:
+        case RAW_GPS: 
           rawDisplay.showRawGPS(&gps, latitude, longitude, altitude, 
                                satellites, hdop, hour, minute, second, gpsValid);
           break;
           
-        case RAW_CELESTIAL:
+        case RAW_CELESTIAL: 
           rawDisplay.showRawCelestial(sunAz, sunAlt, moonAz, moonAlt, moonPhase, 
                                      polarisAz, polarisAlt);
           break;
           
-        case RAW_SYSTEM:
+        case RAW_SYSTEM: 
           // Get system information
-          float batteryLevel = M5.Power.getBatteryLevel();
-          float temperature = 0.0; // Placeholder for temperature sensor
-          unsigned long uptime = millis();
-          int freeMemory = ESP.getFreeHeap();
-          
-          rawDisplay.showSystemInfo(batteryLevel, temperature, uptime, freeMemory);
+          // AtomS3Rはバッテリーを内蔵していないため、バッテリーレベルは使用しない
+          {
+            float batteryLevel = 0.0f; // ダミー値（使用されない）
+            float temperature = getTemperature();
+            unsigned long uptime = millis();
+            int freeMemory = ESP.getFreeHeap();
+            rawDisplay.showSystemInfo(batteryLevel, temperature, uptime, freeMemory);
+          }
           break;
           
-        case RAW_DEBUG:
+        case RAW_DEBUG_MODE: 
           rawDisplay.showDebugInfo("Debug mode active");
           break;
       }
       break;
       
-    case CALIBRATION:
-      // Display calibration status
-      display.showCalibration(0, 0.5); // Placeholder values
+    case SETTINGS_MENU: 
+      // Display settings menu
+      if (settingsMenu.isActive()) {
+        // Update settings menu display
+        settingsMenu.update();
+      } else {
+        // Show settings overview
+        display.showSettings();
+      }
       break;
       
-    case SETTINGS:
-      // Display settings menu
-      display.showSettings();
+    case CALIBRATION_MODE: 
+      // Display calibration status
+      if (calibrationManager.isCalibrating()) {
+        // Get current calibration status
+        CalibrationStatus status = calibrationManager.getCalibrationStatus();
+        // Display calibration progress
+        display.showCalibration(status.stage, status.progress);
+      } else {
+        // Show idle calibration screen
+        display.showCalibration(0, 0.0);
+      }
       break;
   }
 }
 
 void handleButtonPress() {
   // Handle button press
-  if (M5.Btn.wasPressed()) {
+  if (M5.BtnA.wasPressed()) {
+    // Check if settings menu is active
+    if (currentMode == SETTINGS_MENU && settingsMenu.isActive()) {
+      // Pass short press to settings menu
+      settingsMenu.handleButtonPress(true, false);
+      return;
+    }
+    
     // Short press - cycle through display modes
     cycleDisplayMode();
-  } else if (M5.Btn.pressedFor(1000)) {
+  } else if (M5.BtnA.pressedFor(1000)) {
+    // Check if settings menu is active
+    if (currentMode == SETTINGS_MENU && settingsMenu.isActive()) {
+      // Pass long press to settings menu
+      settingsMenu.handleButtonPress(false, true);
+      return;
+    }
+    
     // Long press - perform mode-specific action
     handleLongPress();
   }
@@ -419,25 +471,25 @@ void handleButtonPress() {
 void cycleDisplayMode() {
   // Cycle through display modes
   switch (currentMode) {
-    case POLAR_ALIGNMENT:
+    case POLAR_ALIGNMENT: 
       currentMode = GPS_DATA;
       break;
-    case GPS_DATA:
+    case GPS_DATA: 
       currentMode = IMU_DATA;
       break;
-    case IMU_DATA:
+    case IMU_DATA: 
       currentMode = CELESTIAL_DATA;
       break;
-    case CELESTIAL_DATA:
+    case CELESTIAL_DATA: 
       currentMode = RAW_DATA;
       break;
-    case RAW_DATA:
-      currentMode = SETTINGS;
+    case RAW_DATA: 
+      currentMode = SETTINGS_MENU;
       break;
-    case SETTINGS:
-      currentMode = CALIBRATION;
+    case SETTINGS_MENU: 
+      currentMode = CALIBRATION_MODE;
       break;
-    case CALIBRATION:
+    case CALIBRATION_MODE: 
       currentMode = POLAR_ALIGNMENT;
       break;
   }
@@ -449,39 +501,55 @@ void cycleDisplayMode() {
 void handleLongPress() {
   // Handle long press based on current mode
   switch (currentMode) {
-    case POLAR_ALIGNMENT:
+    case POLAR_ALIGNMENT: 
       // Toggle detailed view
       // TODO: Implement detailed view toggle
       break;
       
-    case GPS_DATA:
+    case GPS_DATA: 
       // Force GPS refresh
       // TODO: Implement GPS refresh
       break;
       
-    case IMU_DATA:
-      // Toggle IMU calibration mode
-      // TODO: Implement IMU calibration toggle
+    case IMU_DATA: 
+      // Start IMU calibration
+      currentMode = CALIBRATION_MODE;
+      calibrateIMU();
+      // Return to IMU data mode after calibration
+      currentMode = IMU_DATA;
       break;
       
-    case CELESTIAL_DATA:
+    case CELESTIAL_DATA: 
       // Toggle between sun and moon focus
       // TODO: Implement celestial focus toggle
       break;
       
-    case RAW_DATA:
+    case RAW_DATA: 
       // Cycle through raw data modes
       cycleRawDataMode();
       break;
       
-    case SETTINGS:
-      // Enter selected setting
-      // TODO: Implement settings selection
+    case SETTINGS_MENU: 
+      // Handle settings menu interaction
+      if (settingsMenu.isActive()) {
+        // Handle long press in settings menu
+        settingsMenu.handleButtonPress(false, true);
+      } else {
+        // Activate settings menu
+        settingsMenu.show();
+      }
       break;
       
-    case CALIBRATION:
+    case CALIBRATION_MODE: 
       // Start/stop calibration process
-      // TODO: Implement calibration toggle
+      if (calibrationManager.isCalibrating()) {
+        // Cancel ongoing calibration
+        calibrationManager.cancelCalibration();
+        Serial.println("Calibration cancelled");
+      } else {
+        // Start calibration
+        calibrateIMU();
+      }
       break;
   }
 }
@@ -489,20 +557,20 @@ void handleLongPress() {
 void cycleRawDataMode() {
   // Cycle through raw data modes
   switch (currentRawMode) {
-    case RAW_IMU:
-      currentRawMode = RAW_GPS;
+    case RAW_IMU: 
+      currentRawMode = RAW_GPS; 
       break;
-    case RAW_GPS:
-      currentRawMode = RAW_CELESTIAL;
+    case RAW_GPS: 
+      currentRawMode = RAW_CELESTIAL; 
       break;
-    case RAW_CELESTIAL:
-      currentRawMode = RAW_SYSTEM;
+    case RAW_CELESTIAL: 
+      currentRawMode = RAW_SYSTEM; 
       break;
-    case RAW_SYSTEM:
-      currentRawMode = RAW_DEBUG;
+    case RAW_SYSTEM: 
+      currentRawMode = RAW_DEBUG_MODE; 
       break;
-    case RAW_DEBUG:
-      currentRawMode = RAW_IMU;
+    case RAW_DEBUG_MODE: 
+      currentRawMode = RAW_IMU; 
       break;
   }
   
@@ -512,53 +580,89 @@ void cycleRawDataMode() {
   // Provide feedback
   Serial.print("Raw data mode: ");
   switch (currentRawMode) {
-    case RAW_IMU:
+    case RAW_IMU: 
       Serial.println("IMU");
       break;
-    case RAW_GPS:
+    case RAW_GPS: 
       Serial.println("GPS");
       break;
-    case RAW_CELESTIAL:
+    case RAW_CELESTIAL: 
       Serial.println("CELESTIAL");
       break;
-    case RAW_SYSTEM:
+    case RAW_SYSTEM: 
       Serial.println("SYSTEM");
       break;
-    case RAW_DEBUG:
+    case RAW_DEBUG_MODE: 
       Serial.println("DEBUG");
       break;
   }
 }
 
 void calibrateIMU() {
-  // Perform IMU calibration
+  // Perform IMU calibration using CalibrationManager
   Serial.println("Starting IMU calibration...");
+  
+  // Start calibration process
+  calibrationManager.startCalibration();
   
   // Update display to show calibration mode
   display.showCalibration(0, 0.0);
   
-  // Calibration steps
-  for (int stage = 0; stage < 3; stage++) {
-    Serial.print("Calibration stage ");
-    Serial.print(stage + 1);
-    Serial.println(" of 3...");
+  // Calibration loop
+  bool calibrationComplete = false;
+  int currentStage = 0;
+  float progress = 0.0;
+  
+  while (!calibrationComplete) {
+    // Update calibration process
+    calibrationManager.updateCalibration();
     
-    // Show current stage
-    for (float progress = 0.0; progress < 1.0; progress += 0.1) {
-      display.showCalibration(stage, progress);
-      delay(200);
+    // Get current calibration status
+    CalibrationStatus status = calibrationManager.getCalibrationStatus();
+    
+    // Update display based on calibration status
+    if (status.stage != currentStage || abs(status.progress - progress) > 0.05) {
+      currentStage = status.stage;
+      progress = status.progress;
+      display.showCalibration(currentStage, progress);
     }
+    
+    // Check if calibration is complete
+    calibrationComplete = status.isComplete;
+    
+    // Process button presses to allow cancellation
+    M5.update();
+    if (M5.BtnA.wasPressed()) {
+      // Cancel calibration if button is pressed
+      calibrationManager.cancelCalibration();
+      Serial.println("Calibration cancelled");
+      break;
+    }
+    
+    // Small delay to prevent CPU hogging
+    delay(50);
   }
   
-  // Calibrate magnetometer
-  imuFusion.calibrateMagnetometer();
-  
-  // Update calibration status
-  imuCalibrated = imuFusion.isCalibrated();
-  
-  // Show completion
-  display.showCalibration(3, 1.0);
-  delay(1000);
-  
-  Serial.println("IMU calibration complete");
+  // Apply calibration if completed successfully
+  if (calibrationComplete) {
+    calibrationManager.applyCalibration();
+    
+    // Update calibration status
+    imuCalibrated = true;
+    
+    // Save calibration data
+    calibrationManager.saveCalibrationData();
+    
+    // Show completion
+    display.showCalibration(3, 1.0);
+    delay(1000);
+    
+    Serial.println("IMU calibration complete and saved");
+  } else {
+    // Show cancellation
+    display.showCalibration(0, 0.0);
+    delay(500);
+    
+    Serial.println("IMU calibration not completed");
+  }
 }
