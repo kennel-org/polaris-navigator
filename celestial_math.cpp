@@ -60,10 +60,71 @@ void calculatePolePosition(float latitude, float longitude, float *azimuth, floa
   if (latitude >= 0) {
     // Northern hemisphere - North Celestial Pole
     *altitude = latitude;
-    *azimuth = 0.0; // True North
+    
+    // Calculate local sidereal time (LST) for current time
+    // Get current date and time from system
+    unsigned long currentTime = millis() / 1000; // seconds since startup
+    
+    // For a real implementation, you should use a real-time clock (RTC)
+    // Here we'll use a fixed date/time for demonstration
+    // In practice, this should be replaced with actual date/time
+    int year = 2025;
+    int month = 3;
+    int day = 23;
+    int hour = 20; // UTC time
+    int minute = 0;
+    int second = 0;
+    
+    // Calculate Julian Date
+    unsigned long jd = getJulianDate(year, month, day);
+    jd += (hour / 24.0) + (minute / 1440.0) + (second / 86400.0);
+    
+    // Calculate Local Sidereal Time
+    double lst = getSiderealTime(jd, longitude);
+    
+    // Polaris is at RA 02h 31m 49s and Dec +89° 15' 51" (J2000)
+    // Convert to radians
+    double polarisRA = (2.0 + 31.0/60.0 + 49.0/3600.0) * 15.0 * DEG_TO_RAD; // 15 deg per hour
+    double polarisDec = (89.0 + 15.0/60.0 + 51.0/3600.0) * DEG_TO_RAD;
+    
+    // Calculate hour angle of Polaris
+    double ha = lst * DEG_TO_RAD - polarisRA;
+    
+    // Calculate azimuth of Polaris
+    double latRad = latitude * DEG_TO_RAD;
+    double sinAlt = sin(polarisDec) * sin(latRad) + cos(polarisDec) * cos(latRad) * cos(ha);
+    double cosAlt = sqrt(1.0 - sinAlt * sinAlt);
+    double sinAz = -cos(polarisDec) * sin(ha) / cosAlt;
+    double cosAz = (sin(polarisDec) - sinAlt * sin(latRad)) / (cosAlt * cos(latRad));
+    
+    // Calculate azimuth in degrees
+    *azimuth = atan2(sinAz, cosAz) * RAD_TO_DEG;
+    
+    // Normalize to 0-360 degrees
+    while (*azimuth < 0) *azimuth += 360.0;
+    while (*azimuth >= 360.0) *azimuth -= 360.0;
+    
+    // Adjust altitude for atmospheric refraction (simplified)
+    float trueAltitude = asin(sinAlt) * RAD_TO_DEG;
+    float refraction = 0.0;
+    
+    if (trueAltitude > -0.575) {
+      refraction = 1.02 / tan((trueAltitude + 10.3 / (trueAltitude + 5.11)) * DEG_TO_RAD) / 60.0;
+    }
+    
+    // If we want the position of Polaris instead of the exact celestial pole
+    // we would use this altitude, but for polar alignment we want the pole
+    // float polarisAltitude = trueAltitude + refraction;
+    
+    // For polar alignment, we keep the altitude as the latitude
+    // *altitude = polarisAltitude;
   } else {
     // Southern hemisphere - South Celestial Pole
     *altitude = -latitude;
+    
+    // In the southern hemisphere, Sigma Octantis is the closest visible star to the pole
+    // but it's much fainter than Polaris and harder to use for alignment
+    // For simplicity, we'll just use the true south direction
     *azimuth = 180.0; // True South
   }
 }
@@ -182,13 +243,71 @@ void calculateMoonPosition(float latitude, float longitude,
 
 // Utility functions
 float calculateMagneticDeclination(float latitude, float longitude) {
-  // This is a placeholder for magnetic declination calculation
-  // In a real implementation, you would use a model like the World Magnetic Model
-  // or a lookup table based on the user's location
+  // Simplified World Magnetic Model (WMM) calculation
+  // This is a simplified implementation based on WMM 2020
+  // Valid for approximately 2020-2025
   
-  // For now, we'll return a fixed value
-  // In reality, magnetic declination varies by location and time
-  return 0.0;
+  // Convert latitude and longitude to radians
+  float lat_rad = latitude * DEG_TO_RAD;
+  float lon_rad = longitude * DEG_TO_RAD;
+  
+  // Coefficients for simplified WMM 2020 (valid ~2020-2025)
+  // These are simplified coefficients and will give approximate results
+  const float g01 = -29404.5;  // Main dipole term
+  const float g11 = -1450.7;
+  const float h11 = 4652.9;
+  const float g02 = -2500.0;
+  const float g12 = 2982.0;
+  const float h12 = -2991.6;
+  
+  // Calculate magnetic field components
+  float P1 = 1.0;                      // Legendre polynomial P(1,0)
+  float P2 = sin(lat_rad);             // Legendre polynomial P(1,1)
+  float P3 = (3.0 * P1 * P1 - 1.0)/2.0; // Legendre polynomial P(2,0)
+  float P4 = 3.0 * P1 * P2;            // Legendre polynomial P(2,1)
+  
+  // North component (X)
+  float X = g01 * P1 + 
+            g11 * P2 * cos(lon_rad) + 
+            h11 * P2 * sin(lon_rad) +
+            g02 * P3 +
+            g12 * P4 * cos(lon_rad) +
+            h12 * P4 * sin(lon_rad);
+  
+  // East component (Y)
+  float Y = g11 * P1 * sin(lon_rad) - 
+            h11 * P1 * cos(lon_rad) +
+            g12 * P2 * sin(lon_rad) -
+            h12 * P2 * cos(lon_rad);
+  
+  // Calculate declination in degrees
+  float declination = atan2(Y, X) * RAD_TO_DEG;
+  
+  // Apply regional corrections (simplified)
+  // These corrections are very approximate and should be replaced with a proper model
+  // or lookup table for production use
+  
+  // North America correction
+  if (longitude >= -130.0 && longitude <= -60.0 && latitude >= 20.0 && latitude <= 60.0) {
+    declination += 5.0 * sin((longitude + 95.0) * DEG_TO_RAD);
+  }
+  
+  // Europe correction
+  if (longitude >= -10.0 && longitude <= 40.0 && latitude >= 35.0 && latitude <= 70.0) {
+    declination += 2.0 * sin((longitude - 15.0) * DEG_TO_RAD);
+  }
+  
+  // Asia correction
+  if (longitude >= 60.0 && longitude <= 150.0 && latitude >= 0.0 && latitude <= 60.0) {
+    declination -= 3.0 * sin((longitude - 105.0) * DEG_TO_RAD);
+  }
+  
+  // Japan specific correction (more accurate for the target region)
+  if (longitude >= 125.0 && longitude <= 150.0 && latitude >= 30.0 && latitude <= 45.0) {
+    declination = -7.5 + (latitude - 35.0) * 0.2 + (longitude - 135.0) * 0.1;
+  }
+  
+  return declination;
 }
 
 void applyMagneticDeclination(float *heading, float declination) {
