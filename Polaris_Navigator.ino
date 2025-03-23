@@ -22,6 +22,7 @@
 
 // Display related
 #include <FastLED.h>         // For LED control
+#include "CompassDisplay.h"  // Custom display interface
 
 // Celestial calculations
 #include "celestial_math.h"  // Custom celestial calculations
@@ -36,6 +37,7 @@ AtomicBaseGPS gps;           // GPS object
 BMI270 bmi270;               // IMU object
 BMM150class bmm150;          // Magnetometer object
 IMUFusion imuFusion(&bmi270, &bmm150); // Sensor fusion
+CompassDisplay display;      // Display object
 
 // GPS data
 float latitude = 0.0;
@@ -76,7 +78,8 @@ enum DisplayMode {
   GPS_DATA,
   IMU_DATA,
   SETTINGS,
-  CALIBRATION
+  CALIBRATION,
+  CELESTIAL_DATA
 };
 
 DisplayMode currentMode = POLAR_ALIGNMENT;
@@ -104,8 +107,8 @@ void setup() {
   setupIMU();
   setupGPS();
   
-  // Show welcome screen
-  M5.dis.drawpix(0, 0x00ff00);  // Green LED to indicate ready
+  // Initialize display
+  display.begin();
   
   // Initialize timing
   lastUpdateTime = millis();
@@ -296,54 +299,43 @@ void calculateCelestialPositions() {
 
 void updateDisplay() {
   // Update display based on current mode
+  display.update(currentMode, gpsValid, imuCalibrated);
+  
+  // Display specific information based on current mode
   switch (currentMode) {
     case POLAR_ALIGNMENT:
       // Display polar alignment information
       if (gpsValid && imuCalibrated) {
-        // Green LED for ready state
-        M5.dis.drawpix(0, 0x00ff00);
-      } else if (!gpsValid && imuCalibrated) {
-        // Yellow LED for IMU ready but no GPS
-        M5.dis.drawpix(0, 0xffff00);
-      } else if (gpsValid && !imuCalibrated) {
-        // Blue LED for GPS ready but IMU not calibrated
-        M5.dis.drawpix(0, 0x0000ff);
-      } else {
-        // Red LED for neither ready
-        M5.dis.drawpix(0, 0xff0000);
+        // Show polar alignment compass
+        display.showPolarAlignment(heading, polarisAz, polarisAlt, pitch, roll);
       }
       break;
       
     case GPS_DATA:
       // Display raw GPS data
       if (gpsValid) {
-        // Green LED for valid GPS
-        M5.dis.drawpix(0, 0x00ff00);
-      } else {
-        // Red LED for invalid GPS
-        M5.dis.drawpix(0, 0xff0000);
+        display.showGPSData(latitude, longitude, altitude, satellites, hdop, hour, minute);
       }
       break;
       
     case IMU_DATA:
       // Display raw IMU data
-      if (imuCalibrated) {
-        // Green LED for calibrated IMU
-        M5.dis.drawpix(0, 0x00ff00);
-      } else {
-        // Yellow LED for uncalibrated IMU
-        M5.dis.drawpix(0, 0xffff00);
-      }
+      display.showIMUData(heading, pitch, roll);
+      break;
+      
+    case CELESTIAL_DATA:
+      // Display celestial data
+      display.showCelestialData(sunAz, sunAlt, moonAz, moonAlt, moonPhase);
       break;
       
     case CALIBRATION:
       // Display calibration status
-      M5.dis.drawpix(0, 0x0000ff);  // Blue LED during calibration
+      display.showCalibration(0, 0.5); // Placeholder values
       break;
       
     case SETTINGS:
       // Display settings menu
-      M5.dis.drawpix(0, 0xff00ff);  // Purple LED for settings
+      display.showSettings();
       break;
   }
 }
@@ -360,6 +352,9 @@ void handleButtons() {
         currentMode = IMU_DATA;
         break;
       case IMU_DATA:
+        currentMode = CELESTIAL_DATA;
+        break;
+      case CELESTIAL_DATA:
         currentMode = SETTINGS;
         break;
       case SETTINGS:
@@ -388,13 +383,30 @@ void calibrateIMU() {
   Serial.println("Starting IMU calibration...");
   
   // Update display to show calibration mode
-  M5.dis.drawpix(0, 0x0000ff);  // Blue LED during calibration
+  display.showCalibration(0, 0.0);
+  
+  // Calibration steps
+  for (int stage = 0; stage < 3; stage++) {
+    Serial.print("Calibration stage ");
+    Serial.print(stage + 1);
+    Serial.println(" of 3...");
+    
+    // Show current stage
+    for (float progress = 0.0; progress < 1.0; progress += 0.1) {
+      display.showCalibration(stage, progress);
+      delay(200);
+    }
+  }
   
   // Calibrate magnetometer
   imuFusion.calibrateMagnetometer();
   
   // Update calibration status
   imuCalibrated = imuFusion.isCalibrated();
+  
+  // Show completion
+  display.showCalibration(3, 1.0);
+  delay(1000);
   
   Serial.println("IMU calibration complete");
 }
