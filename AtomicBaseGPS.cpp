@@ -1,7 +1,7 @@
 /*
  * AtomicBaseGPS.cpp
  * 
- * Implementation for the AtomicBase GPS module
+ * Implementation for the AtomicBase GPS module interface
  * 
  * Created: 2025-03-23
  * GitHub: https://github.com/kennel-org/polaris-navigator
@@ -9,108 +9,102 @@
 
 #include "AtomicBaseGPS.h"
 
-// Pin definitions for AtomicBase GPS
-#define GPS_TX_PIN 5   // GPS TX pin connected to this pin on AtomS3R
-#define GPS_RX_PIN -1  // Not used (one-way communication from GPS to AtomS3R)
-
-AtomicBaseGPS::AtomicBaseGPS() : 
-  _isValid(false),
-  _lastValidTime(0),
-  _latitude(0.0),
-  _longitude(0.0),
-  _altitude(0.0),
-  _satellites(0),
-  _hdop(99.99),
-  _speed(0.0),
-  _course(0.0),
-  _hour(0),
-  _minute(0),
-  _second(0),
-  _year(0),
-  _month(0),
-  _day(0) {
+// Constructor
+AtomicBaseGPS::AtomicBaseGPS() {
+  _isValid = false;
+  _lastValidFix = 0;
+  _serial = nullptr;
+  
+  // Initialize cached values
+  _latitude = 0.0;
+  _longitude = 0.0;
+  _altitude = 0.0;
+  _satellites = 0;
+  _hdop = 99.99;
+  _speed = 0.0;
+  _course = 0.0;
 }
 
-bool AtomicBaseGPS::begin(long baudRate) {
-  // Initialize GPS on Serial2 with specified baud rate
-  Serial2.begin(baudRate, SERIAL_8N1, GPS_TX_PIN, GPS_RX_PIN);
+// Initialize GPS with specified baud rate
+bool AtomicBaseGPS::begin(unsigned long baud) {
+  // Use Serial2 for GPS communication on AtomS3R
+  Serial2.begin(baud, SERIAL_8N1, GPS_TX_PIN, GPS_RX_PIN);
+  _serial = &Serial2;
   
   // Wait a moment for GPS to initialize
   delay(100);
   
+  Serial.println("AtomicBase GPS initialized on pin " + String(GPS_TX_PIN));
   return true;
 }
 
-bool AtomicBaseGPS::update() {
-  // Read data from GPS
-  while (Serial2.available() > 0) {
-    char c = Serial2.read();
-    if (_gps.encode(c)) {
-      // New data was parsed
+// Update GPS data (call this regularly)
+void AtomicBaseGPS::update() {
+  // Read all available data from GPS
+  while (_serial->available() > 0) {
+    char c = _serial->read();
+    _gps.encode(c);
+    
+    // Collect NMEA sentence for debugging
+    if (c == '$') {
+      // Start of a new NMEA sentence
+      _lastNMEA = String(c);
+    } else if (_lastNMEA.length() > 0) {
+      // Continue collecting the NMEA sentence
+      _lastNMEA += c;
       
-      // Update location data if valid
-      if (_gps.location.isValid()) {
-        _latitude = _gps.location.lat();
-        _longitude = _gps.location.lng();
-        _isValid = true;
-        _lastValidTime = millis();
+      // End of NMEA sentence
+      if (c == '\n') {
+        Serial.print("NMEA: ");
+        Serial.print(_lastNMEA);
       }
-      
-      // Update altitude if valid
-      if (_gps.altitude.isValid()) {
-        _altitude = _gps.altitude.meters();
-      }
-      
-      // Update satellite data if valid
-      if (_gps.satellites.isValid()) {
-        _satellites = _gps.satellites.value();
-      }
-      
-      // Update HDOP if valid
-      if (_gps.hdop.isValid()) {
-        _hdop = _gps.hdop.hdop();
-      }
-      
-      // Update speed if valid
-      if (_gps.speed.isValid()) {
-        _speed = _gps.speed.kmph();
-      }
-      
-      // Update course if valid
-      if (_gps.course.isValid()) {
-        _course = _gps.course.deg();
-      }
-      
-      // Update time if valid
-      if (_gps.time.isValid()) {
-        _hour = _gps.time.hour();
-        _minute = _gps.time.minute();
-        _second = _gps.time.second();
-      }
-      
-      // Update date if valid
-      if (_gps.date.isValid()) {
-        _year = _gps.date.year();
-        _month = _gps.date.month();
-        _day = _gps.date.day();
-      }
-      
-      return true;
     }
   }
   
-  // Check if we've lost GPS signal for more than 5 seconds
-  if (_isValid && (millis() - _lastValidTime > 5000)) {
-    _isValid = false;
+  // Update cached values if valid
+  if (_gps.location.isValid()) {
+    _latitude = _gps.location.lat();
+    _longitude = _gps.location.lng();
+    _isValid = true;
+    _lastValidFix = millis();
   }
   
-  return false;
+  if (_gps.altitude.isValid()) {
+    _altitude = _gps.altitude.meters();
+  }
+  
+  if (_gps.satellites.isValid()) {
+    _satellites = _gps.satellites.value();
+  }
+  
+  if (_gps.hdop.isValid()) {
+    _hdop = _gps.hdop.hdop();
+  }
+  
+  if (_gps.speed.isValid()) {
+    _speed = _gps.speed.kmph();
+  }
+  
+  if (_gps.course.isValid()) {
+    _course = _gps.course.deg();
+  }
+  
+  // Check if we have a valid fix
+  if (_gps.location.isValid() && _gps.satellites.isValid()) {
+    _isValid = true;
+    _lastValidFix = millis();
+  } else if (millis() - _lastValidFix > 10000) {
+    // If no valid fix for 10 seconds, mark as invalid
+    _isValid = false;
+  }
 }
 
+// Check if GPS data is valid
 bool AtomicBaseGPS::isValid() const {
   return _isValid;
 }
 
+// Get location data
 float AtomicBaseGPS::getLatitude() const {
   return _latitude;
 }
@@ -123,31 +117,8 @@ float AtomicBaseGPS::getAltitude() const {
   return _altitude;
 }
 
-uint8_t AtomicBaseGPS::getHour() const {
-  return _hour;
-}
-
-uint8_t AtomicBaseGPS::getMinute() const {
-  return _minute;
-}
-
-uint8_t AtomicBaseGPS::getSecond() const {
-  return _second;
-}
-
-uint16_t AtomicBaseGPS::getYear() const {
-  return _year;
-}
-
-uint8_t AtomicBaseGPS::getMonth() const {
-  return _month;
-}
-
-uint8_t AtomicBaseGPS::getDay() const {
-  return _day;
-}
-
-uint8_t AtomicBaseGPS::getSatellites() const {
+// Get quality indicators
+int AtomicBaseGPS::getSatellites() const {
   return _satellites;
 }
 
@@ -155,6 +126,32 @@ float AtomicBaseGPS::getHDOP() const {
   return _hdop;
 }
 
+// Get time data
+bool AtomicBaseGPS::getTime(int *hour, int *minute, int *second) {
+  if (!_gps.time.isValid()) {
+    return false;
+  }
+  
+  *hour = _gps.time.hour();
+  *minute = _gps.time.minute();
+  *second = _gps.time.second();
+  
+  return true;
+}
+
+bool AtomicBaseGPS::getDate(int *year, int *month, int *day) {
+  if (!_gps.date.isValid()) {
+    return false;
+  }
+  
+  *year = _gps.date.year();
+  *month = _gps.date.month();
+  *day = _gps.date.day();
+  
+  return true;
+}
+
+// Get speed and course
 float AtomicBaseGPS::getSpeed() const {
   return _speed;
 }
@@ -163,6 +160,12 @@ float AtomicBaseGPS::getCourse() const {
   return _course;
 }
 
+// Get raw NMEA sentence (for debugging)
+String AtomicBaseGPS::getLastNMEA() const {
+  return _lastNMEA;
+}
+
+// Get raw TinyGPS++ object for advanced usage
 TinyGPSPlus* AtomicBaseGPS::getRawGPS() {
   return &_gps;
 }

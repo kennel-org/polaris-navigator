@@ -20,9 +20,6 @@
 // GPS related
 #include "AtomicBaseGPS.h"   // AtomicBase GPS module
 
-// GPS related
-#include "AtomicBaseGPS.h"   // AtomicBase GPS module
-
 // Display related
 #include <FastLED.h>         // For LED control
 
@@ -48,6 +45,15 @@ int satellites = 0;
 bool gpsValid = false;
 float hdop = 99.99;          // Horizontal dilution of precision
 
+// Time data
+int year = 2025;
+int month = 3;
+int day = 23;
+int hour = 0;
+int minute = 0;
+int second = 0;
+bool timeValid = false;
+
 // IMU data
 float heading = 0.0;         // Compass heading in degrees
 float pitch = 0.0;           // Pitch angle in degrees
@@ -62,6 +68,7 @@ float sunAlt = 0.0;          // Sun altitude
 float moonAz = 0.0;          // Moon azimuth
 float moonAlt = 0.0;         // Moon altitude
 float moonPhase = 0.0;       // Moon phase (0-1)
+float magDeclination = 0.0;  // Magnetic declination
 
 // UI state
 enum DisplayMode {
@@ -190,6 +197,26 @@ void readGPS() {
     satellites = gps.getSatellites();
     hdop = gps.getHDOP();
     
+    // Update time from GPS if available
+    if (gps.getTime(&hour, &minute, &second) && 
+        gps.getDate(&year, &month, &day)) {
+      timeValid = true;
+      
+      // Debug time output
+      Serial.print("Date/Time: ");
+      Serial.print(year);
+      Serial.print("-");
+      Serial.print(month);
+      Serial.print("-");
+      Serial.print(day);
+      Serial.print(" ");
+      Serial.print(hour);
+      Serial.print(":");
+      Serial.print(minute);
+      Serial.print(":");
+      Serial.println(second);
+    }
+    
     // Debug output
     Serial.print("GPS: ");
     Serial.print(latitude, 6);
@@ -220,8 +247,51 @@ void readIMU() {
 }
 
 void calculateCelestialPositions() {
-  // TODO: Implement celestial calculations
-  // This will be implemented in celestial_math.h/.cpp
+  // Calculate celestial positions based on GPS location and current time
+  if (!gpsValid) {
+    return;  // Need valid GPS data for calculations
+  }
+  
+  // Calculate magnetic declination for current location
+  magDeclination = calculateMagneticDeclination(latitude, longitude);
+  
+  // Apply magnetic declination to heading
+  float trueHeading = heading;
+  applyMagneticDeclination(&trueHeading, magDeclination);
+  
+  // Calculate celestial pole position
+  calculatePolePosition(latitude, longitude, &polarisAz, &polarisAlt);
+  
+  // Calculate sun position if time is valid
+  if (timeValid) {
+    calculateSunPosition(latitude, longitude, year, month, day, hour, minute, second, &sunAz, &sunAlt);
+    
+    // Calculate moon position
+    calculateMoonPosition(latitude, longitude, year, month, day, hour, minute, second, &moonAz, &moonAlt, &moonPhase);
+  }
+  
+  // Debug output
+  Serial.print("Celestial Calculations - Magnetic Declination: ");
+  Serial.print(magDeclination);
+  Serial.print("° | Polaris/Pole: Az=");
+  Serial.print(polarisAz);
+  Serial.print("° Alt=");
+  Serial.print(polarisAlt);
+  Serial.print("° | True Heading: ");
+  Serial.println(trueHeading);
+  
+  if (timeValid) {
+    Serial.print("Sun: Az=");
+    Serial.print(sunAz);
+    Serial.print("° Alt=");
+    Serial.print(sunAlt);
+    Serial.print("° | Moon: Az=");
+    Serial.print(moonAz);
+    Serial.print("° Alt=");
+    Serial.print(moonAlt);
+    Serial.print("° Phase=");
+    Serial.println(moonPhase);
+  }
 }
 
 void updateDisplay() {

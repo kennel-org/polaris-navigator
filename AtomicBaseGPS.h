@@ -2,6 +2,7 @@
  * AtomicBaseGPS.h
  * 
  * Interface for the AtomicBase GPS module
+ * Handles GPS data parsing and provides location and time information
  * 
  * Created: 2025-03-23
  * GitHub: https://github.com/kennel-org/polaris-navigator
@@ -13,16 +14,20 @@
 #include <Arduino.h>
 #include <TinyGPS++.h>
 
+// Default pins for AtomicBase GPS
+#define GPS_TX_PIN 5    // GPS TX pin (connects to RX of AtomS3R)
+#define GPS_RX_PIN -1   // GPS RX pin (not used for one-way communication)
+
 class AtomicBaseGPS {
 public:
   // Constructor
   AtomicBaseGPS();
   
-  // Initialize GPS module
-  bool begin(long baudRate = 9600);
+  // Initialize GPS with specified baud rate
+  bool begin(unsigned long baud = 9600);
   
-  // Update GPS data (call this frequently)
-  bool update();
+  // Update GPS data (call this regularly)
+  void update();
   
   // Check if GPS data is valid
   bool isValid() const;
@@ -32,50 +37,39 @@ public:
   float getLongitude() const;
   float getAltitude() const;
   
+  // Get quality indicators
+  int getSatellites() const;
+  float getHDOP() const;  // Horizontal Dilution of Precision
+  
   // Get time data
-  uint8_t getHour() const;
-  uint8_t getMinute() const;
-  uint8_t getSecond() const;
-  uint16_t getYear() const;
-  uint8_t getMonth() const;
-  uint8_t getDay() const;
+  bool getTime(int *hour, int *minute, int *second);
+  bool getDate(int *year, int *month, int *day);
   
-  // Get satellite data
-  uint8_t getSatellites() const;
+  // Get speed and course
+  float getSpeed() const;  // Speed in km/h
+  float getCourse() const; // Course in degrees
   
-  // Get HDOP (Horizontal Dilution of Precision)
-  float getHDOP() const;
-  
-  // Get speed in km/h
-  float getSpeed() const;
-  
-  // Get course in degrees
-  float getCourse() const;
+  // Get raw NMEA sentence (for debugging)
+  String getLastNMEA() const;
   
   // Get raw TinyGPS++ object for advanced usage
   TinyGPSPlus* getRawGPS();
   
 private:
-  TinyGPSPlus _gps;
-  bool _isValid;
-  unsigned long _lastValidTime;
+  TinyGPSPlus _gps;        // GPS parser
+  HardwareSerial *_serial; // Serial port for GPS
+  bool _isValid;           // Flag for valid GPS data
+  unsigned long _lastValidFix; // Timestamp of last valid fix
+  String _lastNMEA;        // Last NMEA sentence received
   
-  // GPS data
+  // Cached data for faster access
   float _latitude;
   float _longitude;
   float _altitude;
-  uint8_t _satellites;
+  int _satellites;
   float _hdop;
   float _speed;
   float _course;
-  
-  // Time data
-  uint8_t _hour;
-  uint8_t _minute;
-  uint8_t _second;
-  uint16_t _year;
-  uint8_t _month;
-  uint8_t _day;
 };
 
 #endif // ATOMIC_BASE_GPS_H
