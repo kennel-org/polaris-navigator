@@ -307,9 +307,32 @@ void RawDataDisplay::showSystemInfo(float batteryLevel, float temperature,
 
 // Display debug information
 void RawDataDisplay::showDebugInfo(const char* debugMessage) {
-  // Print debug information
+  // Print debug information to serial
   Serial.println("=== DEBUG INFO ===");
   Serial.println(debugMessage);
+  
+  // Display debug information on screen
+  M5.Lcd.fillScreen(TFT_BLACK);
+  M5.Lcd.setTextColor(TFT_RED);
+  M5.Lcd.setTextSize(1);
+  
+  // Draw header
+  M5.Lcd.setCursor(5, 5);
+  M5.Lcd.println("ISSUE INFORMATION");
+  
+  // Draw horizontal line
+  M5.Lcd.drawLine(0, 20, M5.Lcd.width(), 20, TFT_RED);
+  
+  // Display the debug message
+  M5.Lcd.setCursor(5, 30);
+  M5.Lcd.setTextColor(TFT_WHITE);
+  M5.Lcd.println(debugMessage);
+  
+  // Draw footer with instructions
+  M5.Lcd.drawLine(0, M5.Lcd.height() - 20, M5.Lcd.width(), M5.Lcd.height() - 20, TFT_RED);
+  M5.Lcd.setCursor(5, M5.Lcd.height() - 15);
+  M5.Lcd.setTextColor(TFT_YELLOW);
+  M5.Lcd.println("Press button to return");
   
   // Flash LED to indicate debug mode
   setPixelColor(0xFF0000); // Red
