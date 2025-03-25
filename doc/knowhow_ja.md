@@ -294,3 +294,75 @@ undefined reference to 'ClassName::methodName'
 
 - エラーが発生した場合は、このドキュメントに追加して知識を蓄積
 - 解決方法を見つけたら、コードにコメントとして残すことも検討
+
+## ビルドエラーの解決方法とGitHub CLIの使用方法に関するノウハウ
+
+### 1. 未実装メソッドによるビルドエラー
+
+**エラー例**:
+```
+undefined reference to `CompassDisplay::showCelestialData(float, float, float, float, int)'
+```
+
+**解決方法**:
+- ヘッダファイル(.h)で宣言されているメソッドが実装ファイル(.cpp)で実装されていない場合に発生します。
+- 宣言と同じシグネチャ（引数の型と数、戻り値の型）で実装を追加します。
+- 実装例:
+  ```cpp
+  void CompassDisplay::showCelestialData(float sunAzimuth, float sunAltitude, float moonAzimuth, float moonAltitude, int moonPhase) {
+    // 実装内容
+  }
+  ```
+
+### 2. メソッド名の不一致によるエラー
+
+**エラー例**:
+```
+'setPixel' was not declared in this scope
+```
+
+**解決方法**:
+- クラス内で定義されているメソッド名と呼び出しているメソッド名が一致しているか確認します。
+- 例: `setPixel()`を呼び出している場合、実際のメソッド名が`setPixelColor()`であれば、呼び出し側を修正します。
+- AtomS3Rでは、LEDの制御に`setPixelColor()`を使用します（`setPixel()`ではない）。
+
+## GitHub CLIを使用したプルリクエスト作成
+
+GitHub CLIを使用すると、コマンドラインからGitHubのプルリクエストを作成できます。
+
+### 1. GitHub CLIのインストール確認
+
+```powershell
+# GitHub CLIがインストールされているか確認
+& "C:\Program Files\GitHub CLI\gh.exe" --version
+```
+
+### 2. GitHub CLIでの認証
+
+```powershell
+# 初回使用時は認証が必要
+& "C:\Program Files\GitHub CLI\gh.exe" auth login
+```
+
+### 3. プルリクエストの作成
+
+```powershell
+# カレントブランチからプルリクエストを作成
+& "C:\Program Files\GitHub CLI\gh.exe" pr create --title "タイトル" --body "説明文"
+```
+
+### 4. プルリクエストの確認
+
+```powershell
+# 作成したプルリクエストの一覧を表示
+& "C:\Program Files\GitHub CLI\gh.exe" pr list
+```
+
+### 5. プルリクエストのステータス確認
+
+```powershell
+# 特定のプルリクエストの詳細を表示
+& "C:\Program Files\GitHub CLI\gh.exe" pr view [PR番号]
+```
+
+GitHub CLIを使用すると、ブラウザを開かずにプルリクエストの作成や管理ができるため、開発ワークフローが効率化されます。
