@@ -13,27 +13,27 @@
 // #include <Wire.h>        // I2C communication - M5Unifiedに含まれるため不要
 
 // IMU related
-#include "BMM150class.h"     // Magnetometer
-#include "BMI270.h"          // Accelerometer and Gyroscope
-#include "IMUFusion.h"       // Sensor fusion
+#include "src/BMM150class.h"     // Magnetometer
+#include "src/BMI270.h"          // Accelerometer and Gyroscope
+#include "src/IMUFusion.h"       // Sensor fusion
 
 // GPS related
-#include "AtomicBaseGPS.h"   // AtomicBase GPS module
+#include "src/AtomicBaseGPS.h"   // AtomicBase GPS module
 
 // Display related
 // #include <FastLED.h>         // For LED control
-#include "CompassDisplay.h"  // Custom display interface
-#include "CelestialOverlay.h" // Celestial overlay
-#include "RawDataDisplay.h"  // Raw data display
-#include "DisplayModes.h"    // Display mode definitions
+#include "src/CompassDisplay.h"  // Custom display interface
+#include "src/CelestialOverlay.h" // Celestial overlay
+#include "src/RawDataDisplay.h"  // Raw data display
+#include "src/DisplayModes.h"    // Display mode definitions
 
 // Celestial calculations
-#include "celestial_math.h"  // Custom celestial calculations
+#include "src/celestial_math.h"  // Custom celestial calculations
 
 // Calibration and Settings
-#include "CalibrationManager.h" // Sensor calibration
-#include "SettingsManager.h"    // User settings
-#include "SettingsMenu.h"       // Settings menu interface
+#include "src/CalibrationManager.h" // Sensor calibration
+#include "src/SettingsManager.h"    // User settings
+#include "src/SettingsMenu.h"       // Settings menu interface
 
 // Constants
 #define GPS_BAUD 9600        // GPS baud rate
@@ -191,7 +191,8 @@ void setupIMU() {
   // Initialize IMU sensors
   // M5Unifiedでは通常Wire.beginは不要ですが、
   // AtomS3Rの特定のピンでI2Cを初期化する必要がある場合は以下を使用
-  Wire.begin(38, 39);  // SDA, SCL pins for AtomS3R
+  // Wire.begin(38, 39);  // SDA, SCL pins for AtomS3R - 古いピン設定
+  // M5.begin()内でWire.beginが既に呼び出されているため、ここでは不要
   
   // Initialize BMI270
   if (bmi270.begin() != BMI270_OK) {

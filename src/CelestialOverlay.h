@@ -44,6 +44,9 @@ public:
   // Get moon position
   void getMoonPosition(float* azimuth, float* altitude);
   
+  // Get polaris position
+  void getPolarisPosition(float* azimuth, float* altitude);
+  
   // Get moon phase (0.0 to 1.0, where 0.0 is new moon and 1.0 is full moon)
   float getMoonPhase();
   
@@ -69,9 +72,6 @@ public:
   int getMinutesToNextSunset();
   int getMinutesToNextMoonrise();
   int getMinutesToNextMoonset();
-  
-  // Get Polaris position
-  void getPolarisPosition(float* azimuth, float* altitude);
   
   // Debug output
   void printCelestialData();
