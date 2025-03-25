@@ -413,7 +413,17 @@ void updateDisplay() {
           break;
           
         case RAW_DEBUG_MODE: 
-          rawDisplay.showDebugInfo("Debug mode active");
+          // Display issue information with more detailed message
+          {
+            char issueMessage[128];
+            snprintf(issueMessage, sizeof(issueMessage), 
+                    "System Status:\nIMU: %s\nGPS: %s\nTemp: %.1f C\nMem: %d bytes",
+                    imuCalibrated ? "OK" : "NOT CALIBRATED",
+                    gpsValid ? "OK" : "NO SIGNAL",
+                    getTemperature(),
+                    ESP.getFreeHeap());
+            rawDisplay.showDebugInfo(issueMessage);
+          }
           break;
       }
       break;
