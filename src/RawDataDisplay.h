@@ -58,7 +58,7 @@ public:
   // Set LED color based on data quality
   void setDataQualityIndicator(float quality);
   
-  // Set LED color for AtomS3R
+  // Set pixel color (for RGB LED)
   void setPixelColor(uint32_t color);
   
 private:

@@ -35,15 +35,24 @@ bool AtomicBaseGPS::begin(unsigned long baud) {
   delay(100);
   
   Serial.println("AtomicBase GPS initialized on pin " + String(GPS_TX_PIN));
+  
+  // Clear any existing data in the buffer
+  while (_serial->available()) {
+    _serial->read();
+  }
+  
   return true;
 }
 
 // Update GPS data (call this regularly)
 void AtomicBaseGPS::update() {
-  // Read all available data from GPS
-  while (_serial->available() > 0) {
+  bool newData = false;
+  unsigned long startTime = millis();
+  
+  // Read all available data from GPS with timeout
+  while (_serial->available() > 0 && (millis() - startTime < 100)) {
     char c = _serial->read();
-    _gps.encode(c);
+    newData = _gps.encode(c) || newData;
     
     // Collect NMEA sentence for debugging
     if (c == '$') {
@@ -55,10 +64,38 @@ void AtomicBaseGPS::update() {
       
       // End of NMEA sentence
       if (c == '\n') {
-        Serial.print("NMEA: ");
-        Serial.print(_lastNMEA);
+        // Only print NMEA sentences occasionally to avoid flooding Serial
+        static unsigned long lastNmeaPrint = 0;
+        if (millis() - lastNmeaPrint > 5000) {  // Print every 5 seconds
+          Serial.print("NMEA: ");
+          Serial.print(_lastNMEA);
+          lastNmeaPrint = millis();
+        }
       }
     }
+  }
+  
+  // Report if new data was processed
+  static unsigned long lastStatusReport = 0;
+  if (millis() - lastStatusReport > 10000) {  // Every 10 seconds
+    Serial.print("GPS Status: ");
+    if (newData) {
+      Serial.println("Receiving data");
+    } else {
+      Serial.println("No new data");
+    }
+    
+    Serial.print("Satellites: ");
+    if (_gps.satellites.isValid()) {
+      Serial.println(_satellites);
+    } else {
+      Serial.println("Invalid");
+    }
+    
+    Serial.print("Location valid: ");
+    Serial.println(_gps.location.isValid() ? "Yes" : "No");
+    
+    lastStatusReport = millis();
   }
   
   // Update cached values if valid
