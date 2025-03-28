@@ -23,11 +23,11 @@ enum DisplayMode {
 
 // Raw data display modes
 enum RawDataMode {
-  RAW_IMU = 0,
-  RAW_GPS = 1,
-  RAW_CELESTIAL = 2,
-  RAW_SYSTEM = 3,
-  RAW_DEBUG_MODE = 4  // RAW_DEBUGからRAW_DEBUG_MODEに変更
+  RAW_IMU = 0,        // IMU raw data
+  RAW_GPS = 1,        // GPS raw data
+  RAW_CELESTIAL = 2,  // Celestial data
+  RAW_SYSTEM = 3,     // System information
+  DISPLAY_DEBUG = 4   // Debug mode (consistent naming)
 };
 
 #endif // DISPLAY_MODES_H

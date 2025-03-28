@@ -52,90 +52,68 @@ public:
   // Initialize display
   void begin();
   
-  // Update display based on current mode
-  void update(int mode, bool gpsValid, bool imuCalibrated);
-  
-  // Display welcome screen
+  // Show welcome screen
   void showWelcome();
   
   // Display compass
   void showCompass(float heading, float pitch, float roll, bool gpsValid, bool imuCalibrated);
   
-  // Display GPS data
-  void showGPS(float latitude, float longitude, float altitude, int satellites, float hdop, bool gpsValid, bool imuCalibrated);
+  // Display polar alignment compass
+  void showPolarAlignment(float heading, float polarisAz, float polarisAlt, float pitch, float roll);
+  
+  // Display celestial overlay
+  void showCelestialOverlay(float heading, float pitch, float roll, 
+                          float sunAz, float sunAlt, 
+                          float moonAz, float moonAlt, float moonPhase);
+  
+  // Display GPS information
+  void showGPS(float latitude, float longitude, float altitude, int satellites, float hdop);
+  
+  // Display GPS invalid message
+  void showGPSInvalid();
   
   // Display IMU data
   void showIMU();
   
-  // Set IMU data
-  void setIMUData(float gyroX, float gyroY, float gyroZ, 
-                 float accelX, float accelY, float accelZ,
-                 float magX, float magY, float magZ);
-                
-  // Display calibration
-  void showCalibration(int calibrationStage, int8_t progress);
-  
-  // Display polar alignment compass
-  void showPolarAlignment(float heading, float polarisAz, float polarisAlt, float pitch, float roll);
-  
-  // Display celestial data
-  void showCelestial(float latitude, float longitude, float heading, bool gpsValid, bool imuCalibrated);
-  
-  // Display celestial data with sun and moon positions
-  void showCelestialData(float sunAzimuth, float sunAltitude, float moonAzimuth, float moonAltitude, int moonPhase);
-  
-  // Display celestial overlay with current position and time
-  void showCelestialOverlay(float heading, float latitude, float longitude, 
-                           int year, int month, int day, int hour, int minute, int second);
-  
-  // Display IMU data (heading, pitch, roll)
-  void showIMUData(float heading, float pitch, float roll);
-  
-  // Display GPS data
-  void showGPSData(float latitude, float longitude, float altitude, int satellites, float hdop, int hour, int minute);
-  
-  // Display settings screen
+  // Display settings menu
   void showSettings();
   
-  // Show error message
+  // Display error message
   void showError(const char* message);
   
-  // Set pixel color (for RGB LED)
-  void setPixelColor(uint32_t color);
-  
-  // Animation helpers
-  void pulsePixel(uint32_t color, int duration);
-  void rotatePixel(uint32_t color, int duration, int direction);
-  
 private:
-  // Helper methods
-  uint32_t getAlignmentColor(float angleDiff);
-  void blinkPixel(uint32_t color1, uint32_t color2, int count, int delayMs);
-  int getMoonIllumination(int moonPhase);
+  // Canvas for double buffering
+  M5Canvas _canvas = M5Canvas(&M5.Display);
   
-  // Celestial overlay helper
-  void updateCelestialOverlay(float latitude, float longitude,
-                             int year, int month, int day, int hour, int minute, int second);
-  
-  // State variables
+  // Current animation color
   uint32_t _currentColor;
-  unsigned long _lastAnimationTime;
   
-  // Sprite for double-buffered rendering
-  LGFX_Sprite* _sprite;
+  // Last animation time
+  unsigned long _lastAnimationTime;
   
   // Celestial overlay
   CelestialOverlay _celestialOverlay;
   
-  // Display mode
+  // Draw compass rose
+  void drawCompassRose(float heading);
+  
+  // Draw horizon line
+  void drawHorizon(float pitch, float roll);
+  
+  // Set pixel color (for RGB LED)
+  void setPixelColor(uint32_t color);
+  
+  // Blink NeoPixel
+  void blinkPixel(uint32_t color1, uint32_t color2, int count, int duration);
+  
+  // State variables
   DisplayMode _currentMode;
   
   // IMUデータ
   IMUData _imuData;
   
-  // ユーティリティ関数
-  void drawCompassRose(float heading);
-  void drawHorizon(float pitch, float roll);
+  // Double buffering
+  void swapBuffers();
 };
 
 #endif // COMPASS_DISPLAY_H

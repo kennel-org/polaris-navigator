@@ -13,7 +13,7 @@
 
 ## ビルドコマンド
 
-```
+```bash
 & "C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe" compile --fqbn m5stack:esp32:m5stack_atoms3r .
 ```
 
@@ -22,7 +22,7 @@
 ### 1. 関数宣言と定義の不一致
 
 **エラー例**:
-```
+```bash
 function expects X arguments, Y provided
 ```
 
@@ -113,6 +113,30 @@ undefined reference to 'ClassName::methodName'
 - すべての宣言されたメソッドが実装されているか確認してください。
 - 使用していないメソッドは宣言から削除するか、空の実装を提供してください。
 
+### 9. ライブラリマクロとの名前競合
+
+**エラー例**:
+```
+expected unqualified-id before numeric constant
+```
+
+**解決方法**:
+- ESP32のlwIPライブラリなど、システムライブラリで定義されているマクロ名と競合していないか確認
+- 特に `RAW_DEBUG` のような一般的な名前は、ライブラリですでに定義されている可能性がある
+- 競合する場合は、プロジェクト固有のプレフィックスを付けるか（例：`PN_DEBUG`）、別の名前に変更する（例：`DISPLAY_DEBUG`）
+
+### 10. 重複したケース値
+
+**エラー例**:
+```
+duplicate case value
+```
+
+**解決方法**:
+- switchステートメント内で同じ値を持つcaseが複数定義されていないか確認
+- 列挙型で同じ値を持つ複数の定数を定義している場合、switchステートメントでは一つだけ使用する
+- エイリアスとして同じ値を持つ列挙型を定義する場合は、コメントで明示する
+
 ## デバッグのヒント
 
 1. **シリアルモニタの活用**: 
@@ -142,7 +166,7 @@ undefined reference to 'ClassName::methodName'
 
 8. **ビルドフラグの活用**:
    - `-v`（詳細）フラグを使用して、より詳細なビルド情報を取得します。
-   ```
+   ```bash
    & "C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe" compile --fqbn m5stack:esp32:m5stack_atoms3r . -v
    ```
 
@@ -366,3 +390,35 @@ GitHub CLIを使用すると、コマンドラインからGitHubのプルリク�
 ```
 
 GitHub CLIを使用すると、ブラウザを開かずにプルリクエストの作成や管理ができるため、開発ワークフローが効率化されます。
+
+## M5AtomS3デバイスでの表示調整
+
+### 画面サイズと表示位置
+
+M5AtomS3の小さな画面（128x128ピクセル）に合わせて表示を調整する際のポイント：
+
+- **テキスト位置の最適化**:
+  - 行間を詰めて（例：10px → 5px）より多くの情報を表示
+  - 重要な情報を画面上部に配置し、スクロールなしで見えるようにする
+
+- **グラフィック要素のサイズ調整**:
+  - コンパスローズの半径を小さくする（例：40px → 30px）
+  - 中心位置を上部に移動して（例：centerY = 150 → 110）画面内に収める
+
+- **方位表示の工夫**:
+  - 方位記号（N, E, S, W）を追加して視認性を向上
+  - 北を示す線は赤色で強調し、方向を明確に
+
+- **フォントサイズと色**:
+  - 重要な情報は大きめのフォントで表示
+  - ステータス情報は色分けして視認性を向上（例：有効=緑、無効=赤）
+
+### アップロード時の注意点
+
+- デバイスがダウンロードモードになっていることを確認してからアップロード
+- ダウンロードモードにするには、リセットボタンを押しながらUSB接続するか、接続状態でリセットボタンを長押し
+- アップロード失敗時は「No serial data received」などのエラーが表示される
+- アップロードコマンド例:
+  ```bash
+  arduino-cli upload -p COM10 --fqbn m5stack:esp32:m5stack_atoms3r Polaris_Navigator
+  ```

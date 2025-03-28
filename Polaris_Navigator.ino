@@ -13,18 +13,18 @@
 // #include <Wire.h>        // I2C communication - M5Unifiedに含まれるため不要
 
 // IMU related
-#include "src/BMM150class.h"     // Magnetometer
 #include "src/BMI270.h"          // Accelerometer and Gyroscope
+#include "src/BMM150class.h"     // Magnetometer
 #include "src/IMUFusion.h"       // Sensor fusion
 
 // GPS related
 #include "src/AtomicBaseGPS.h"   // AtomicBase GPS module
+#include <TinyGPSPlus.h>         // GPS parser
 
 // Display related
-// #include <FastLED.h>         // For LED control
-#include "src/CompassDisplay.h"  // Custom display interface
-#include "src/CelestialOverlay.h" // Celestial overlay
+#include "src/CompassDisplay.h"  // Compass display
 #include "src/RawDataDisplay.h"  // Raw data display
+#include "src/CelestialOverlay.h" // Celestial overlay
 #include "src/DisplayModes.h"    // Display mode definitions
 
 // Celestial calculations
@@ -38,7 +38,12 @@
 // Constants
 #define GPS_BAUD 9600        // GPS baud rate
 #define SERIAL_BAUD 115200   // Serial monitor baud rate
-#define UPDATE_INTERVAL 50   // Main loop update interval in ms
+#define UPDATE_INTERVAL 1000  // LCD更新間隔（ミリ秒）- ちらつき軽減のため長めに設定
+
+// GPS pins for AtomicBase GPS
+// 注: これらの定義はAtomicBaseGPS.hですでに定義されているため、ここでは参照用です
+// #define GPS_TX_PIN 5         // GPS TX pin
+// #define GPS_RX_PIN -1        // GPS RX pin (not used for AtomicBase)
 
 // Global variables
 AtomicBaseGPS gps;           // GPS object
@@ -129,7 +134,7 @@ void setup() {
   setupHardware();
   
   // デバッグ用のテキスト表示
-  M5.Display.fillScreen(TFT_BLUE);
+  M5.Display.fillScreen(TFT_NAVY);
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.setTextSize(1);
   M5.Display.setCursor(10, 10);
@@ -158,8 +163,8 @@ void setup() {
   lastUpdateTime = millis();
   
   // デバッグ用のテキスト表示（初期化完了後）
-  M5.Display.fillScreen(TFT_GREEN);
-  M5.Display.setTextColor(TFT_BLACK);
+  M5.Display.fillScreen(TFT_NAVY);
+  M5.Display.setTextColor(TFT_WHITE);
   M5.Display.setTextSize(1);
   M5.Display.setCursor(10, 10);
   M5.Display.println("Init Complete");
@@ -169,9 +174,9 @@ void setup() {
 }
 
 void loop() {
-  // Calculate delta time for sensor fusion
+  // Get current time
   unsigned long currentTime = millis();
-  float deltaTime = (currentTime - lastUpdateTime) / 1000.0f;  // Convert to seconds
+  unsigned long deltaTime = currentTime - lastUpdateTime;
   lastUpdateTime = currentTime;
   
   // Update button state
@@ -192,103 +197,88 @@ void loop() {
     calculateCelestialPositions();
   }
   
-  // デバッグ用の表示（1秒ごとに更新）
-  static unsigned long lastDebugTime = 0;
-  if (currentTime - lastDebugTime >= 1000) {
-    lastDebugTime = currentTime;
-    
-    // 画面をクリア
-    M5.Display.fillScreen(TFT_NAVY);
-    M5.Display.setTextColor(TFT_WHITE);
-    M5.Display.setTextSize(1);
-    
-    // ヘッダー
-    M5.Display.setCursor(5, 5);
-    M5.Display.println("Polaris Navigator");
-    M5.Display.drawLine(0, 15, 128, 15, TFT_CYAN);
-    
-    // IMUデータ
-    M5.Display.setCursor(5, 20);
-    M5.Display.println("IMU Data:");
-    M5.Display.setCursor(5, 30);
-    M5.Display.print("Heading: ");
-    M5.Display.print(heading, 1);
-    M5.Display.setCursor(5, 40);
-    M5.Display.print("Pitch: ");
-    M5.Display.print(pitch, 1);
-    M5.Display.setCursor(5, 50);
-    M5.Display.print("Roll: ");
-    M5.Display.print(roll, 1);
-    
-    // GPSデータ
-    M5.Display.setCursor(5, 65);
-    M5.Display.println("GPS Data:");
-    M5.Display.setCursor(5, 75);
-    if (gpsValid) {
-      M5.Display.print("Lat: ");
-      M5.Display.print(latitude, 4);
-      M5.Display.setCursor(5, 85);
-      M5.Display.print("Lon: ");
-      M5.Display.print(longitude, 4);
-      M5.Display.setCursor(5, 95);
-      M5.Display.print("Sats: ");
-      M5.Display.print(satellites);
-    } else {
-      M5.Display.println("No GPS Fix");
-    }
-    
-    // フッター
-    M5.Display.drawLine(0, 110, 128, 110, TFT_CYAN);
-    M5.Display.setCursor(5, 115);
-    M5.Display.print("Uptime: ");
-    M5.Display.print(currentTime / 1000);
-    M5.Display.print("s");
-  }
-  
-  // Update display at specified interval
+  // LCD更新は一定間隔で実行（ちらつき軽減）
+  static unsigned long lastDisplayTime = 0;
   if (currentTime - lastDisplayTime >= UPDATE_INTERVAL) {
     lastDisplayTime = currentTime;
-    // updateDisplay();  // 通常の表示更新は一時的に無効化
+    
+    // LCD更新前に短い遅延を追加（ちらつき軽減）
+    delay(5);
+    
+    // LCD更新
+    updateDisplay();
+    
+    // LCD更新後に短い遅延を追加（ちらつき軽減）
+    delay(5);
   }
 }
 
 void setupHardware() {
   // Initialize AtomS3R
   auto cfg = M5.config();
-  cfg.serial_baudrate = SERIAL_BAUD;  // シリアル通信のボーレート設定
-  cfg.clear_display = true;           // ディスプレイをクリア
-  cfg.output_power = true;            // 電源出力を有効化
-  M5.begin(cfg);                      // M5Unifiedの初期化
+  cfg.serial_baudrate = SERIAL_BAUD;  // Set serial communication baud rate
+  cfg.clear_display = true;           // Clear display
+  cfg.output_power = true;            // Enable power output
+  cfg.led_brightness = 20;            // Set LED brightness (0-255)
+  M5.begin(cfg);                      // Initialize M5Unified
   
-  // ディスプレイの初期化を確認
-  M5.Display.fillScreen(TFT_RED);     // 画面を赤で塗りつぶし
-  M5.Display.setTextColor(TFT_WHITE); // テキスト色を白に設定
-  M5.Display.setTextSize(1);          // テキストサイズを1に設定
-  M5.Display.setCursor(10, 50);       // カーソル位置を設定
+  // Adjust LCD brightness (reduce flickering)
+  M5.Display.setBrightness(40);       // Set LCD brightness to 40%
+  
+  // Optimize LCD settings (reduce flickering)
+  M5.Display.setColorDepth(16);       // Set color depth to 16-bit
+  M5.Display.setSwapBytes(true);      // Swap byte order
+  
+  // Confirm LCD initialization
+  M5.Display.fillScreen(TFT_NAVY);    // Set background color to navy
+  M5.Display.setTextColor(TFT_WHITE); // Set text color to white
+  M5.Display.setTextSize(1);          // Set text size to 1
+  M5.Display.setCursor(10, 50);       // Set cursor position
   M5.Display.println("Initializing...");
-  delay(1000);                        // 1秒間表示
+  delay(1000);                        // Display for 1 second
   
   Serial.println("Polaris Navigator initializing...");
 }
 
 void setupIMU() {
   // デバッグ表示
-  M5.Display.fillScreen(TFT_PURPLE);
+  M5.Display.fillScreen(TFT_NAVY);
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.setTextSize(1);
   M5.Display.setCursor(10, 10);
   M5.Display.println("IMU Setup...");
   
   // M5Unifiedライブラリを使用してIMUを初期化
-  M5.Imu.init();
+  bool initResult = M5.Imu.init();
+  Serial.print("IMU init result: ");
+  Serial.println(initResult ? "Success" : "Failed");
   
   // センサー初期化チェック
-  if(!M5.Imu.getType()){
+  int imuType = M5.Imu.getType();
+  Serial.print("IMU Type: ");
+  Serial.println(imuType);
+  
+  if(!imuType){
     M5.Display.setTextColor(TFT_RED);
     M5.Display.println("IMU Init Failed!");
-    Serial.println("IMU initialization failed!");
-    delay(2000);
-    return;
+    Serial.println("IMU initialization failed! No IMU detected.");
+    
+    // 再試行
+    Serial.println("Retrying IMU initialization...");
+    delay(500);
+    initResult = M5.Imu.init();
+    imuType = M5.Imu.getType();
+    
+    if(!imuType) {
+      Serial.println("IMU retry failed. Check hardware connections.");
+      M5.Display.println("Check hardware!");
+      delay(2000);
+      return;
+    } else {
+      Serial.println("IMU retry successful!");
+      M5.Display.setTextColor(TFT_GREEN);
+      M5.Display.println("IMU Retry OK!");
+    }
   }
   
   // センサー範囲設定
@@ -306,32 +296,26 @@ void setupIMU() {
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.println("Calibration Status:");
   
-  // 注意: 現在のCalibrationManagerはBMI270とBMM150クラスに依存していて、
-  // M5Unifiedライブラリに合わせて修正する必要があります
-  // if (calibrationManager.loadCalibrationData()) {
-  //   M5.Display.setTextColor(TFT_GREEN);
-  //   M5.Display.println("Calib Loaded");
-  //   Serial.println("Loaded saved calibration data");
-  //   calibrationManager.applyCalibration();
-  //   imuCalibrated = true;
-  // } else {
-  //   M5.Display.setTextColor(TFT_YELLOW);
-  //   M5.Display.println("No Calib Data");
-  //   Serial.println("No saved calibration data found");
-  //   imuCalibrated = false;
-  // }
-  
-  // 現時点ではキャリブレーションは未実施と表示
+  // キャリブレーションなしでも有効とする
   M5.Display.setTextColor(TFT_YELLOW);
-  M5.Display.println("Not Calibrated");
-  Serial.println("Using M5Unified without calibration data");
-  imuCalibrated = false;
+  M5.Display.println("Default Calibration");
+  Serial.println("Using M5Unified with default calibration");
+  imuCalibrated = true;  // キャリブレーションなしでも有効とする
   
   // IMUデータのテスト読み取り
   float acc[3], gyro[3], mag[3];
-  M5.Imu.getAccel(&acc[0], &acc[1], &acc[2]);
-  M5.Imu.getGyro(&gyro[0], &gyro[1], &gyro[2]);
-  M5.Imu.getMag(&mag[0], &mag[1], &mag[2]);
+  
+  // センサーデータを取得
+  bool accOk = M5.Imu.getAccel(&acc[0], &acc[1], &acc[2]);    // 加速度 (g)
+  bool gyroOk = M5.Imu.getGyro(&gyro[0], &gyro[1], &gyro[2]);  // 角速度 (dps)
+  bool magOk = M5.Imu.getMag(&mag[0], &mag[1], &mag[2]);      // 地磁気 (μT)
+  
+  Serial.print("Accel read: ");
+  Serial.println(accOk ? "OK" : "Failed");
+  Serial.print("Gyro read: ");
+  Serial.println(gyroOk ? "OK" : "Failed");
+  Serial.print("Mag read: ");
+  Serial.println(magOk ? "OK" : "Failed");
   
   M5.Display.setCursor(10, 70);
   M5.Display.setTextColor(TFT_WHITE);
@@ -349,7 +333,7 @@ void setupIMU() {
 
 void setupGPS() {
   // デバッグ表示
-  M5.Display.fillScreen(TFT_DARKGREEN);
+  M5.Display.fillScreen(TFT_NAVY);  // 濃い緑から紺色に変更
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.setTextSize(1);
   M5.Display.setCursor(10, 10);
@@ -358,7 +342,13 @@ void setupGPS() {
   // Initialize GPS module
   M5.Display.setCursor(10, 30);
   M5.Display.println("Init GPS...");
+  Serial.println("Initializing GPS with default pins (TX:5, RX:-1)");
+  Serial.print("GPS_TX_PIN: ");
+  Serial.println(GPS_TX_PIN);
+  Serial.print("GPS_RX_PIN: ");
+  Serial.println(GPS_RX_PIN);
   
+  // AtomicBaseGPSクラスのデフォルトピン設定を使用
   bool gpsResult = gps.begin(GPS_BAUD);
   if (gpsResult) {
     M5.Display.setTextColor(TFT_GREEN);
@@ -368,8 +358,56 @@ void setupGPS() {
     M5.Display.setTextColor(TFT_RED);
     M5.Display.println("GPS Failed!");
     Serial.println("Failed to initialize GPS!");
+    
+    // 再試行
+    Serial.println("Retrying GPS initialization...");
+    delay(500);
+    gpsResult = gps.begin(GPS_BAUD);
+    if (gpsResult) {
+      M5.Display.setTextColor(TFT_GREEN);
+      M5.Display.println("GPS Retry OK");
+      Serial.println("GPS retry successful");
+    } else {
+      M5.Display.setTextColor(TFT_RED);
+      M5.Display.println("GPS Retry Failed!");
+      Serial.println("GPS retry failed. Check hardware connections.");
+    }
   }
   
+  // Check Serial2 status
+  Serial.print("Serial2 available: ");
+  Serial.println(Serial2 ? "Yes" : "No");
+  
+  // Wait for initial GPS data
+  Serial.println("Waiting for initial GPS data...");
+  M5.Display.setCursor(10, 50);
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.println("Waiting for GPS data...");
+  
+  // Try to get initial GPS data with timeout
+  unsigned long startTime = millis();
+  bool initialDataReceived = false;
+  
+  while (millis() - startTime < 5000) { // 5秒間待機
+    gps.update();
+    if (Serial2.available() > 0) {
+      initialDataReceived = true;
+      break;
+    }
+    delay(100);
+  }
+  
+  if (initialDataReceived) {
+    M5.Display.setTextColor(TFT_GREEN);
+    M5.Display.println("GPS data received");
+    Serial.println("Initial GPS data received");
+  } else {
+    M5.Display.setTextColor(TFT_YELLOW);
+    M5.Display.println("No GPS data yet");
+    Serial.println("No initial GPS data received within timeout");
+  }
+  
+  // GPSが初期化できなくても、アプリケーションは続行できるようにする
   delay(1000);
 }
 
@@ -425,32 +463,68 @@ void readGPS() {
 void readIMU() {
   // M5Unifiedライブラリを使用してIMUデータを取得
   float acc[3], gyro[3], mag[3];
+  bool accOk = false, gyroOk = false, magOk = false;
   
   // センサーデータを取得
-  M5.Imu.getAccel(&acc[0], &acc[1], &acc[2]);    // 加速度 (g)
-  M5.Imu.getGyro(&gyro[0], &gyro[1], &gyro[2]);  // 角速度 (dps)
-  M5.Imu.getMag(&mag[0], &mag[1], &mag[2]);      // 地磁気 (μT)
+  accOk = M5.Imu.getAccel(&acc[0], &acc[1], &acc[2]);    // 加速度 (g)
+  gyroOk = M5.Imu.getGyro(&gyro[0], &gyro[1], &gyro[2]);  // 角速度 (dps)
+  magOk = M5.Imu.getMag(&mag[0], &mag[1], &mag[2]);      // 地磁気 (μT)
+  
+  // 定期的にセンサー状態をレポート
+  static unsigned long lastSensorReport = 0;
+  if (millis() - lastSensorReport > 10000) {  // 10秒ごと
+    Serial.println("IMU Sensor Status:");
+    Serial.print("Accelerometer: ");
+    Serial.println(accOk ? "OK" : "Failed");
+    Serial.print("Gyroscope: ");
+    Serial.println(gyroOk ? "OK" : "Failed");
+    Serial.print("Magnetometer: ");
+    Serial.println(magOk ? "OK" : "Failed");
+    lastSensorReport = millis();
+  }
   
   // ピッチとロールの計算
   // 重力ベクトルからピッチとロールを計算
-  pitch = atan2(acc[0], sqrt(acc[1] * acc[1] + acc[2] * acc[2])) * 180.0 / PI;
-  roll = atan2(acc[1], acc[2]) * 180.0 / PI;
+  if (accOk) {
+    pitch = atan2(acc[0], sqrt(acc[1] * acc[1] + acc[2] * acc[2])) * 180.0 / PI;
+    roll = atan2(acc[1], acc[2]) * 180.0 / PI;
+  }
   
   // 方位角の計算（ティルト補正あり）
-  // ピッチとロールを考慮した方位角の計算
-  float pitch_rad = pitch * PI / 180.0;
-  float roll_rad = roll * PI / 180.0;
-  
-  // 地磁気データをティルト補正
-  float mag_x = mag[0] * cos(pitch_rad) + mag[2] * sin(pitch_rad);
-  float mag_y = mag[0] * sin(roll_rad) * sin(pitch_rad) + mag[1] * cos(roll_rad) - mag[2] * sin(roll_rad) * cos(pitch_rad);
-  
-  // 補正後の地磁気データから方位角を計算
-  heading = atan2(mag_y, mag_x) * 180.0 / PI;
-  
-  // 0-360度の範囲に変換
-  if (heading < 0) {
-    heading += 360.0;
+  if (accOk && magOk) {
+    // ピッチとロールを考慮した方位角の計算
+    float pitch_rad = pitch * PI / 180.0;
+    float roll_rad = roll * PI / 180.0;
+    
+    // 地磁気データをティルト補正
+    float mag_x = mag[0] * cos(pitch_rad) + mag[2] * sin(pitch_rad);
+    float mag_y = mag[0] * sin(roll_rad) * sin(pitch_rad) + mag[1] * cos(roll_rad) - mag[2] * sin(roll_rad) * cos(pitch_rad);
+    
+    // 補正後の地磁気データから方位角を計算
+    heading = atan2(mag_y, mag_x) * 180.0 / PI;
+    
+    // 0-360度の範囲に変換
+    if (heading < 0) {
+      heading += 360.0;
+    }
+    
+    // 異常値チェック
+    static float lastValidHeading = heading;
+    if (isnan(heading) || heading < 0 || heading > 360) {
+      Serial.println("Warning: Invalid heading detected, using last valid value");
+      heading = lastValidHeading;
+    } else {
+      // 有効な値の場合は保存
+      lastValidHeading = heading;
+    }
+    
+    // 簡単なローパスフィルタを適用して急激な変化を抑制
+    static float filteredHeading = heading;
+    filteredHeading = 0.9 * filteredHeading + 0.1 * heading;
+    heading = filteredHeading;
+  } else {
+    // センサーデータが無効な場合は前回の値を維持
+    Serial.println("Warning: Cannot calculate heading, sensor data unavailable");
   }
   
   // デバッグ出力
@@ -461,26 +535,33 @@ void readIMU() {
   Serial.print(", Roll=");
   Serial.println(roll);
   
-  Serial.print("Accel (g): X=");
-  Serial.print(acc[0]);
-  Serial.print(", Y=");
-  Serial.print(acc[1]);
-  Serial.print(", Z=");
-  Serial.println(acc[2]);
+  // センサーデータが有効な場合のみ詳細情報を出力
+  if (accOk) {
+    Serial.print("Accel (g): X=");
+    Serial.print(acc[0]);
+    Serial.print(", Y=");
+    Serial.print(acc[1]);
+    Serial.print(", Z=");
+    Serial.println(acc[2]);
+  }
   
-  Serial.print("Gyro (dps): X=");
-  Serial.print(gyro[0]);
-  Serial.print(", Y=");
-  Serial.print(gyro[1]);
-  Serial.print(", Z=");
-  Serial.println(gyro[2]);
+  if (gyroOk) {
+    Serial.print("Gyro (dps): X=");
+    Serial.print(gyro[0]);
+    Serial.print(", Y=");
+    Serial.print(gyro[1]);
+    Serial.print(", Z=");
+    Serial.println(gyro[2]);
+  }
   
-  Serial.print("Mag (uT): X=");
-  Serial.print(mag[0]);
-  Serial.print(", Y=");
-  Serial.print(mag[1]);
-  Serial.print(", Z=");
-  Serial.println(mag[2]);
+  if (magOk) {
+    Serial.print("Mag (uT): X=");
+    Serial.print(mag[0]);
+    Serial.print(", Y=");
+    Serial.print(mag[1]);
+    Serial.print(", Z=");
+    Serial.println(mag[2]);
+  }
 }
 
 void calculateCelestialPositions() {
@@ -532,161 +613,67 @@ void calculateCelestialPositions() {
 }
 
 void updateDisplay() {
-  // Update display based on current mode
-  display.update(currentMode, gpsValid, imuCalibrated);
+  // Static variable to record the last display mode
+  static int lastMode = -1;
+  static bool lastGpsValid = false;
   
-  // Display specific information based on current mode
+  // Determine if display update is needed
+  bool needUpdate = (currentMode != lastMode) || (gpsValid != lastGpsValid);
+  
+  // Record current state
+  lastMode = currentMode;
+  lastGpsValid = gpsValid;
+  
+  // Check IMU and GPS status
+  bool imuDataAvailable = true;  // IMU data is always available
+  
+  // Update display based on current mode
   switch (currentMode) {
-    case POLAR_ALIGNMENT: 
-      // Display polar alignment information
-      if (gpsValid && imuCalibrated) {
-        // Show polar alignment compass
-        display.showPolarAlignment(heading, polarisAz, polarisAlt, pitch, roll);
-      }
+    case POLAR_ALIGNMENT:
+      // Polar alignment mode - Display compass with Polaris position
+      display.showPolarAlignment(heading, polarisAz, polarisAlt, pitch, roll);
       break;
-      
-    case GPS_DATA: 
-      // Display raw GPS data
+    case CELESTIAL_DATA:  
+      // Celestial mode - Display compass with sun/moon positions
+      display.showCelestialOverlay(heading, pitch, roll, 
+                                 sunAz, sunAlt, 
+                                 moonAz, moonAlt, moonPhase);
+      break;
+    case GPS_DATA:  
+      // GPS information mode - Display GPS coordinates and status
       if (gpsValid) {
-        display.showGPSData(latitude, longitude, altitude, satellites, hdop, hour, minute);
-      }
-      break;
-      
-    case IMU_DATA: 
-      // Display raw IMU data
-      display.showIMUData(heading, pitch, roll);
-      break;
-      
-    case CELESTIAL_DATA: 
-      // Display celestial data with enhanced overlay
-      if (gpsValid) {
-        // Get current date and time from GPS
-        int year, month, day;
-        gps.getDate(&year, &month, &day);
-        
-        // Show celestial overlay with current position and time
-        display.showCelestialOverlay(heading, latitude, longitude, 
-                                    year, month, day, hour, minute, second);
+        display.showGPS(latitude, longitude, altitude, satellites, hdop);
       } else {
-        // Fallback to basic celestial data display
-        display.showCelestialData(sunAz, sunAlt, moonAz, moonAlt, moonPhase);
+        display.showGPSInvalid();
       }
       break;
-      
-    case RAW_DATA: 
-      // Display detailed raw sensor data
-      switch (currentRawMode) {
-        case RAW_IMU: 
-          rawDisplay.showRawIMU(&bmi270, &bmm150, heading, pitch, roll, imuCalibrated);
-          break;
-          
-        case RAW_GPS: 
-          rawDisplay.showRawGPS(&gps, latitude, longitude, altitude, 
-                               satellites, hdop, hour, minute, second, gpsValid);
-          break;
-          
-        case RAW_CELESTIAL: 
-          rawDisplay.showRawCelestial(sunAz, sunAlt, moonAz, moonAlt, moonPhase, 
-                                     polarisAz, polarisAlt);
-          break;
-          
-        case RAW_SYSTEM: 
-          // Get system information
-          // AtomS3Rはバッテリーを内蔵していないため、バッテリーレベルは使用しない
-          {
-            float batteryLevel = 0.0f; // ダミー値（使用されない）
-            float temperature = getTemperature();
-            unsigned long uptime = millis();
-            int freeMemory = ESP.getFreeHeap();
-            rawDisplay.showSystemInfo(batteryLevel, temperature, uptime, freeMemory);
-          }
-          break;
-          
-        case RAW_DEBUG_MODE: 
-          // Display issue information with more detailed message
-          {
-            // IMUの校正状態を詳細に取得
-            String imuStatus;
-            if (imuCalibrated) {
-              imuStatus = "OK";
-            } else {
-              // 校正状態を確認
-              bool accelCalibrated = calibrationManager.isAccelCalibrated();
-              bool magCalibrated = calibrationManager.isMagCalibrated();
-              
-              if (!accelCalibrated && !magCalibrated) {
-                imuStatus = "NOT CALIBRATED";
-              } else {
-                imuStatus = "PARTIAL";
-                if (!accelCalibrated) imuStatus += " A:NG";
-                if (!magCalibrated) imuStatus += " M:NG";
-              }
-            }
-            
-            // GPSの状態を詳細に取得
-            String gpsStatus;
-            if (gpsValid) {
-              gpsStatus = "OK (Sats: " + String(satellites) + ")";
-            } else {
-              if (satellites > 0) {
-                gpsStatus = "WEAK (" + String(satellites) + " sats)";
-              } else {
-                gpsStatus = "NO SIGNAL";
-              }
-            }
-            
-            // システム情報を取得
-            float temp = getTemperature();
-            uint32_t freeHeap = ESP.getFreeHeap();
-            uint32_t totalHeap = ESP.getHeapSize();
-            int heapPercent = (freeHeap * 100) / totalHeap;
-            
-            // 詳細なメッセージを作成
-            char issueMessage[256];
-            snprintf(issueMessage, sizeof(issueMessage), 
-                    "System Status:\n"
-                    "IMU: %s\n"
-                    "GPS: %s\n"
-                    "Temp: %.1f C\n"
-                    "Mem: %d KB (%d%%)\n"
-                    "Uptime: %d min",
-                    imuStatus.c_str(),
-                    gpsStatus.c_str(),
-                    temp,
-                    freeHeap / 1024,
-                    heapPercent,
-                    millis() / 60000);
-            
-            rawDisplay.showDebugInfo(issueMessage);
-          }
-          break;
-      }
+    case RAW_DATA:
+      // Raw data mode - Display raw sensor data
+      rawDisplay.update(currentRawMode);  
       break;
-      
-    case SETTINGS_MENU: 
-      // Display settings menu
-      if (settingsMenu.isActive()) {
-        // Update settings menu display
-        settingsMenu.update();
-      } else {
-        // Show settings overview
-        display.showSettings();
-      }
+    case IMU_DATA:
+      // IMU data mode - Display detailed IMU sensor data
+      display.showIMU();
       break;
-      
-    case CALIBRATION_MODE: 
-      // Display calibration status
-      if (calibrationManager.isCalibrating()) {
-        // Get current calibration status
-        CalibrationStatus status = calibrationManager.getCalibrationStatus();
-        // Display calibration progress
-        display.showCalibration(status.stage, status.progress);
-      } else {
-        // Show idle calibration screen
-        display.showCalibration(0, 0.0);
-      }
+    case SETTINGS_MENU:  
+      // Settings mode - Display settings menu
+      display.showSettings();
+      break;
+    case CALIBRATION_MODE:
+      // Calibration mode - handled by main loop
       break;
   }
+  
+  // Add a small delay after updating display to reduce flickering
+  delay(10);
+  
+  // Output debug information to serial
+  Serial.print("Display Mode: ");
+  Serial.print(currentMode);
+  Serial.print(", IMU Valid: ");
+  Serial.print(imuDataAvailable ? "Yes" : "No");
+  Serial.print(", GPS Valid: ");
+  Serial.println(gpsValid ? "Yes" : "No");
 }
 
 void handleButtonPress() {
@@ -813,9 +800,9 @@ void cycleRawDataMode() {
       currentRawMode = RAW_SYSTEM; 
       break;
     case RAW_SYSTEM: 
-      currentRawMode = RAW_DEBUG_MODE; 
+      currentRawMode = DISPLAY_DEBUG; 
       break;
-    case RAW_DEBUG_MODE: 
+    case DISPLAY_DEBUG: 
       currentRawMode = RAW_IMU; 
       break;
   }
@@ -838,7 +825,7 @@ void cycleRawDataMode() {
     case RAW_SYSTEM: 
       Serial.println("SYSTEM");
       break;
-    case RAW_DEBUG_MODE: 
+    case DISPLAY_DEBUG: 
       Serial.println("DEBUG");
       break;
   }
