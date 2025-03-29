@@ -27,6 +27,11 @@
 #include "src/RawDataDisplay.h"  // Raw data display
 #include "src/CelestialOverlay.h" // Celestial overlay
 #include "src/DisplayModes.h"    // Display mode definitions
+#include "src/logo.h"            // App logo
+
+// SPIFFS must be included before PNGLoader.h
+#include <SPIFFS.h>              // SPIFFSファイルシステム
+#include "src/PNGLoader.h"       // PNG画像ローダー
 
 // Celestial calculations
 #include "src/celestial_math.h"  // Custom celestial calculations
@@ -63,10 +68,20 @@ float latitude = 0.0;
 float longitude = 0.0;
 float altitude = 0.0;
 int satellites = 0;
-bool gpsValid = false;
 float hdop = 99.99;          // Horizontal dilution of precision
+bool gpsValid = false;
+bool locationValid = false;
+bool altitudeValid = false;
+bool timeValid = false;
+bool dateValid = false;
+bool speedValid = false;
+bool courseValid = false;
 bool wasGpsValid = false;    // 前回のGPS有効状態を記録
 unsigned long lastGpsUpdate = 0; // 最終GPS更新時刻
+TinyGPSDate gpsDate;
+TinyGPSTime gpsTime;
+float speed = 0.0;
+float course = 0.0;
 
 // Time data
 int year = 2025;
@@ -75,7 +90,6 @@ int day = 23;
 int hour = 0;
 int minute = 0;
 int second = 0;
-bool timeValid = false;
 
 // IMU data
 float heading = 0.0;         // Compass heading in degrees
@@ -137,14 +151,39 @@ void setup() {
   // Initialize hardware
   setupHardware();
   
-  // デバッグ用のテキスト表示
+  // スプラッシュ画面（起動画面）の表示
   M5.Display.fillScreen(TFT_NAVY);
+  
+  // ロゴの表示（PNG画像を使用）
+  if (SPIFFS.exists("/logo.png")) {
+    // PNG画像が存在する場合はそれを表示
+    int centerX = (M5.Display.width() - 64) / 2;
+    int centerY = 20;
+    if (drawPNG("/logo.png", centerX, centerY)) {
+      Serial.println("PNG logo displayed successfully");
+    } else {
+      // PNG表示に失敗した場合はバックアップとして組み込みロゴを使用
+      Serial.println("Falling back to embedded logo");
+      drawNavigatorLogo(32, 20, 64);
+    }
+  } else {
+    // PNG画像がない場合は組み込みロゴを使用
+    Serial.println("PNG logo not found, using embedded logo");
+    drawNavigatorLogo(32, 20, 64);
+  }
+  
+  // アプリ名の表示
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.setTextSize(1);
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("Debug Mode");
-  M5.Display.setCursor(10, 30);
-  M5.Display.println("Starting sensors...");
+  M5.Display.setCursor(20, 100);
+  M5.Display.println("Polaris Navigator");
+  
+  // バージョン情報
+  M5.Display.setTextSize(0.8);
+  M5.Display.setCursor(35, 115);
+  M5.Display.println("v1.0.0 (2025)");
+  
+  delay(2000); // スプラッシュ画面を2秒間表示
   
   // Initialize sensors
   setupIMU();
@@ -169,14 +208,14 @@ void setup() {
   // Initialize timing
   lastUpdateTime = millis();
   
-  // デバッグ用のテキスト表示（初期化完了後）
+  // センサー初期化完了の表示
   M5.Display.fillScreen(TFT_NAVY);
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.setTextSize(1);
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("Init Complete");
-  M5.Display.setCursor(10, 30);
-  M5.Display.println("Starting main loop...");
+  M5.Display.setCursor(25, 50);
+  M5.Display.println("Initialization");
+  M5.Display.setCursor(40, 65);
+  M5.Display.println("Complete");
   delay(1000);
 }
 
@@ -232,6 +271,18 @@ void setupHardware() {
   // Optimize LCD settings (reduce flickering)
   M5.Display.setColorDepth(16);       // Set color depth to 16-bit
   M5.Display.setSwapBytes(true);      // Swap byte order
+  
+  // Initialize SPIFFS
+  if (!initSPIFFS()) {
+    M5.Display.fillScreen(TFT_RED);
+    M5.Display.setTextColor(TFT_WHITE);
+    M5.Display.setCursor(5, 50);
+    M5.Display.println("SPIFFS Error!");
+    delay(2000);
+  } else {
+    // デバッグ用：ファイル一覧を表示
+    listSPIFFSFiles();
+  }
   
   // Confirm LCD initialization
   M5.Display.fillScreen(TFT_NAVY);    // Set background color to navy
