@@ -1,5 +1,7 @@
 # Polaris Navigator
 
+![Polaris Navigator Logo](images/logo.png)
+
 A polar alignment assistant device for astrophotography using AtomS3R (with IMU) and AtomicBase GPS.
 
 ## Overview

@@ -1,0 +1,6 @@
+This image file serves as the icon for Polaris Navigator.
+It depicts a character with elf-like features inside a compass,
+featuring a navy blue background with a gold compass frame, a red triangle
+pointing north, and a cyan star (representing Polaris, the North Star).
+
+The actual image data is embedded as a C language array in the logo.h file.
