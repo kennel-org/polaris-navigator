@@ -122,78 +122,65 @@ void CompassDisplay::showIMU() {
   M5.Display.setTextSize(1);
   
   // Display title
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("IMU Data");
+  M5.Display.setTextColor(TFT_MAGENTA);
+  M5.Display.setCursor(2, 0);
+  M5.Display.println("RAW IMU DATA:");
+  M5.Display.setTextColor(TFT_WHITE);
   
-  // Display gyroscope data
-  M5.Display.setCursor(10, 30);
-  M5.Display.println("Gyroscope:");
-  M5.Display.setCursor(20, 40);
-  M5.Display.printf("X: %6.2f deg/s", _imuData.gyroX);
-  M5.Display.setCursor(20, 50);
-  M5.Display.printf("Y: %6.2f deg/s", _imuData.gyroY);
-  M5.Display.setCursor(20, 60);
-  M5.Display.printf("Z: %6.2f deg/s", _imuData.gyroZ);
+  int y = 11;
   
-  // Display accelerometer data
-  M5.Display.setCursor(10, 80);
-  M5.Display.println("Accelerometer:");
-  M5.Display.setCursor(20, 90);
-  M5.Display.printf("X: %6.2f G", _imuData.accelX);
-  M5.Display.setCursor(20, 100);
-  M5.Display.printf("Y: %6.2f G", _imuData.accelY);
-  M5.Display.setCursor(20, 110);
-  M5.Display.printf("Z: %6.2f G", _imuData.accelZ);
+  // Accelerometer data
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.println("Accelerometer (G):");
+  M5.Display.setTextColor(TFT_WHITE);
+  y += 9; 
   
-  // Display magnetometer data
-  M5.Display.setCursor(10, 130);
-  M5.Display.println("Magnetometer:");
-  M5.Display.setCursor(20, 140);
-  M5.Display.printf("X: %6.2f uT", _imuData.magX);
-  M5.Display.setCursor(20, 150);
-  M5.Display.printf("Y: %6.2f uT", _imuData.magY);
-  M5.Display.setCursor(20, 160);
-  M5.Display.printf("Z: %6.2f uT", _imuData.magZ);
+  // Display X and Y on the same line
+  M5.Display.setCursor(2, y);
+  M5.Display.printf("X: %.3f  Y: %.3f", _imuData.accelX, _imuData.accelY);
+  y += 9; 
+  
+  // Display Z on its own line
+  M5.Display.setCursor(2, y);
+  M5.Display.printf("Z: %.3f", _imuData.accelZ);
+  y += 12; 
+  
+  // Gyroscope data
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.println("Gyroscope (deg/s):");
+  M5.Display.setTextColor(TFT_WHITE);
+  y += 9; 
+  
+  // Display X and Y on the same line
+  M5.Display.setCursor(2, y);
+  M5.Display.printf("X: %.3f  Y: %.3f", _imuData.gyroX, _imuData.gyroY);
+  y += 9; 
+  
+  // Display Z on its own line
+  M5.Display.setCursor(2, y);
+  M5.Display.printf("Z: %.3f", _imuData.gyroZ);
+  y += 12; 
+  
+  // Magnetometer data
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.println("Magnetometer (uT):");
+  M5.Display.setTextColor(TFT_WHITE);
+  y += 9; 
+  
+  // Display X and Y on the same line
+  M5.Display.setCursor(2, y);
+  M5.Display.printf("X: %.3f  Y: %.3f", _imuData.magX, _imuData.magY);
+  y += 9; 
+  
+  // Display Z on its own line
+  M5.Display.setCursor(2, y);
+  M5.Display.printf("Z: %.3f", _imuData.magZ);
   
   // Set LED to blue
   setPixelColor(COLOR_BLUE);
-}
-
-// Display settings menu
-void CompassDisplay::showSettings() {
-  // Clear display
-  M5.Display.fillScreen(TFT_NAVY);
-  
-  // Set text settings
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setTextSize(1);
-  
-  // Display title
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("Settings Menu");
-  
-  // Display settings items
-  M5.Display.setCursor(10, 30);
-  M5.Display.println("1. Display Brightness");
-  
-  M5.Display.setCursor(10, 45);
-  M5.Display.println("2. Calibration");
-  
-  M5.Display.setCursor(10, 60);
-  M5.Display.println("3. GPS Settings");
-  
-  M5.Display.setCursor(10, 75);
-  M5.Display.println("4. Units");
-  
-  M5.Display.setCursor(10, 90);
-  M5.Display.println("5. Power Options");
-  
-  // Display operation instructions
-  M5.Display.setCursor(10, 120);
-  M5.Display.println("Press button to select");
-  
-  // Set LED to cyan
-  setPixelColor(COLOR_CYAN);
 }
 
 // Display compass
@@ -206,52 +193,15 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   M5.Display.setTextSize(1);
   
   // Display title
-  M5.Display.setCursor(10, 5);
-  M5.Display.println("Compass");
-  
-  // Display heading
-  M5.Display.setCursor(10, 20);
-  M5.Display.print("Heading: ");
-  M5.Display.print(heading, 1);
-  M5.Display.println(" deg");
-  
-  // Display pitch and roll
-  M5.Display.setCursor(10, 32);
-  M5.Display.print("Pitch: ");
-  M5.Display.print(pitch, 1);
-  M5.Display.println(" deg");
-  
-  M5.Display.setCursor(10, 44);
-  M5.Display.print("Roll: ");
-  M5.Display.print(roll, 1);
-  M5.Display.println(" deg");
-  
-  // Display status indicators
-  M5.Display.setCursor(10, 56);
-  M5.Display.print("GPS: ");
-  if (gpsValid) {
-    M5.Display.setTextColor(TFT_GREEN);
-    M5.Display.println("Valid");
-  } else {
-    M5.Display.setTextColor(TFT_RED);
-    M5.Display.println("Invalid");
-  }
-  
-  M5.Display.setCursor(10, 68);
+  M5.Display.setTextColor(TFT_CYAN);
+  M5.Display.setCursor(2, 0);
+  M5.Display.println("COMPASS DATA");
   M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.print("IMU: ");
-  if (imuCalibrated) {
-    M5.Display.setTextColor(TFT_GREEN);
-    M5.Display.println("Calibrated");
-  } else {
-    M5.Display.setTextColor(TFT_YELLOW);
-    M5.Display.println("Needs Calibration");
-  }
   
-  // Draw compass rose
+  // Draw compass rose first (in the upper portion of the screen)
   int centerX = M5.Display.width() / 2;
-  int centerY = 110; 
-  int radius = 30; 
+  int centerY = 45; 
+  int radius = 25; 
   
   // Draw compass circle
   M5.Display.drawCircle(centerX, centerY, radius, TFT_WHITE);
@@ -269,11 +219,11 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   M5.Display.setTextSize(1);
   
   // North label
-  M5.Display.setCursor(centerX - 3, centerY - radius - 10);
+  M5.Display.setCursor(centerX - 3, centerY - radius - 8);
   M5.Display.print("N");
   
   // East label
-  M5.Display.setCursor(centerX + radius + 5, centerY - 3);
+  M5.Display.setCursor(centerX + radius + 3, centerY - 3);
   M5.Display.print("E");
   
   // South label
@@ -281,8 +231,69 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   M5.Display.print("S");
   
   // West label
-  M5.Display.setCursor(centerX - radius - 10, centerY - 3);
+  M5.Display.setCursor(centerX - radius - 8, centerY - 3);
   M5.Display.print("W");
+  
+  // Display heading with larger text and centered
+  M5.Display.setTextSize(2);
+  char headingStr[8];
+  sprintf(headingStr, "%03.1f", heading);
+  int textWidth = strlen(headingStr) * 12; // Approximate width of text
+  M5.Display.setCursor(centerX - textWidth/2, centerY - 8);
+  M5.Display.print(headingStr);
+  M5.Display.setTextSize(1);
+  
+  // Display numerical data below the compass
+  int y = centerY + radius + 12;
+  
+  // Display heading, pitch and roll on separate lines
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Heading: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print(heading, 1);
+  M5.Display.println("°");
+  y += 9;
+  
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Pitch: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print(pitch, 1);
+  M5.Display.println("°");
+  y += 9;
+  
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Roll: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print(roll, 1);
+  M5.Display.println("°");
+  y += 12;
+  
+  // Display status indicators with colored icons
+  M5.Display.setCursor(2, y);
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print("GPS: ");
+  if (gpsValid) {
+    M5.Display.setTextColor(TFT_GREEN);
+    M5.Display.println("OK");
+  } else {
+    M5.Display.setTextColor(TFT_RED);
+    M5.Display.println("NO");
+  }
+  y += 9;
+  
+  M5.Display.setCursor(2, y);
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print("IMU: ");
+  if (imuCalibrated) {
+    M5.Display.setTextColor(TFT_GREEN);
+    M5.Display.println("OK");
+  } else {
+    M5.Display.setTextColor(TFT_YELLOW);
+    M5.Display.println("CAL");
+  }
   
   // Set LED color based on GPS and IMU status
   if (!gpsValid) {
@@ -304,30 +315,15 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.setTextSize(1);
   
   // Display title
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("Polar Alignment");
+  M5.Display.setTextColor(TFT_MAGENTA);
+  M5.Display.setCursor(2, 0);
+  M5.Display.println("POLAR ALIGNMENT");
+  M5.Display.setTextColor(TFT_WHITE);
   
-  // Display heading
-  M5.Display.setCursor(10, 30);
-  M5.Display.print("Heading: ");
-  M5.Display.print(heading, 1);
-  M5.Display.println(" deg");
-  
-  // Display Polaris position
-  M5.Display.setCursor(10, 45);
-  M5.Display.print("Polaris Az: ");
-  M5.Display.print(polarisAz, 1);
-  M5.Display.println(" deg");
-  
-  M5.Display.setCursor(10, 60);
-  M5.Display.print("Polaris Alt: ");
-  M5.Display.print(polarisAlt, 1);
-  M5.Display.println(" deg");
-  
-  // Draw compass rose
+  // Draw compass rose in the upper portion of the screen
   int centerX = M5.Display.width() / 2;
-  int centerY = 120;
-  int radius = 40;
+  int centerY = 45; 
+  int radius = 25; 
   
   // Draw compass circle
   M5.Display.drawCircle(centerX, centerY, radius, TFT_WHITE);
@@ -340,21 +336,132 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   int ny = centerY - radius * cos(angle);
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
   
-  // Draw Polaris position
-  float polarisAngle = (polarisAz - heading) * PI / 180.0;
-  int px = centerX + radius * sin(polarisAngle);
-  int py = centerY - radius * cos(polarisAngle);
+  // Calculate Polaris position relative to heading
+  float polarisAngle = (360 - polarisAz) * PI / 180.0;
+  int px = centerX + (radius * 0.8) * sin(polarisAngle);
+  int py = centerY - (radius * 0.8) * cos(polarisAngle);
   
-  // Adjust for altitude (simple projection)
-  float altFactor = 1.0 - (polarisAlt / 90.0) * 0.5;
-  px = centerX + (px - centerX) * altFactor;
-  py = centerY + (py - centerY) * altFactor;
+  // Draw Polaris indicator (star symbol)
+  M5.Display.fillCircle(px, py, 2, TFT_CYAN);
+  M5.Display.drawLine(px-3, py, px+3, py, TFT_CYAN);
+  M5.Display.drawLine(px, py-3, px, py+3, TFT_CYAN);
   
-  // Draw Polaris marker
-  M5.Display.fillCircle(px, py, 3, TFT_CYAN);
+  // Add cardinal direction labels
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.setTextSize(1);
   
-  // Set LED to purple
-  setPixelColor(COLOR_PURPLE);
+  // North label
+  M5.Display.setCursor(centerX - 3, centerY - radius - 8);
+  M5.Display.print("N");
+  
+  // East label
+  M5.Display.setCursor(centerX + radius + 3, centerY - 3);
+  M5.Display.print("E");
+  
+  // South label
+  M5.Display.setCursor(centerX - 3, centerY + radius + 2);
+  M5.Display.print("S");
+  
+  // West label
+  M5.Display.setCursor(centerX - radius - 8, centerY - 3);
+  M5.Display.print("W");
+  
+  // Display numerical data below the compass
+  int y = centerY + radius + 12;
+  
+  // Display heading
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Heading: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print(heading, 1);
+  M5.Display.println("°");
+  y += 9;
+  
+  // Display Polaris position
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Polaris Az: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print(polarisAz, 1);
+  M5.Display.println("°");
+  y += 9;
+  
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Polaris Alt: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print(polarisAlt, 1);
+  M5.Display.println("°");
+  y += 9;
+  
+  // Display pitch and roll
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Pitch: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print(pitch, 1);
+  M5.Display.println("°");
+  y += 9;
+  
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Roll: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.print(roll, 1);
+  M5.Display.println("°");
+  
+  // 仰角のグラフィック表示を追加
+  y = 110; // 固定位置に配置（画面内に収まるように）
+  
+  // 仰角インジケーターのタイトル
+  M5.Display.setTextColor(TFT_CYAN);
+  M5.Display.setCursor(2, y);
+  M5.Display.println("Alt Indicator:");
+  y += 10;
+  
+  // 仰角バーの基準位置
+  int barCenterX = M5.Display.width() / 2;
+  int barY = y;
+  int barWidth = 80;
+  int barHeight = 8;
+  
+  // 背景バー（グレー）
+  M5.Display.fillRect(barCenterX - barWidth/2, barY, barWidth, barHeight, TFT_DARKGREY);
+  
+  // 中央マーカー（白）
+  M5.Display.fillRect(barCenterX - 1, barY - 2, 2, barHeight + 4, TFT_WHITE);
+  
+  // 目標高度マーカー（シアン）
+  int targetPos = barCenterX - barWidth/2 + (int)((polarisAlt / 90.0) * barWidth);
+  targetPos = constrain(targetPos, barCenterX - barWidth/2 + 2, barCenterX + barWidth/2 - 2);
+  M5.Display.fillRect(targetPos - 1, barY - 2, 2, barHeight + 4, TFT_CYAN);
+  
+  // 現在の傾きインジケーター（黄色）
+  int currentPos = barCenterX - barWidth/2 + (int)((pitch / 90.0) * barWidth);
+  currentPos = constrain(currentPos, barCenterX - barWidth/2 + 2, barCenterX + barWidth/2 - 2);
+  M5.Display.fillTriangle(
+    currentPos, barY - 4,
+    currentPos - 4, barY - 8,
+    currentPos + 4, barY - 8,
+    TFT_YELLOW
+  );
+  
+  // 仰角の数値表示（コンパクトに）
+  y += barHeight + 8;
+  M5.Display.setTextColor(TFT_CYAN);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("T:");
+  M5.Display.print(polarisAlt, 1);
+  M5.Display.print("°  ");
+  
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.print("C:");
+  M5.Display.print(pitch, 1);
+  M5.Display.println("°");
+  
+  // Set LED to blue
+  setPixelColor(COLOR_BLUE);
 }
 
 // Display celestial overlay
@@ -369,18 +476,18 @@ void CompassDisplay::showCelestialOverlay(float heading, float pitch, float roll
   M5.Display.setTextSize(1);
   
   // Display title
-  M5.Display.setCursor(10, 10);
+  M5.Display.setCursor(10, 0);
   M5.Display.println("Celestial Overlay");
   
   // Display heading
-  M5.Display.setCursor(10, 30);
+  M5.Display.setCursor(10, 30); // 20から30に変更（10ピクセル下げる）
   M5.Display.print("Heading: ");
   M5.Display.print(heading, 1);
   M5.Display.println(" deg");
   
   // Draw compass rose
   int centerX = M5.Display.width() / 2;
-  int centerY = 120;
+  int centerY = 110;
   int radius = 40;
   
   // Draw compass circle
@@ -423,20 +530,20 @@ void CompassDisplay::showCelestialOverlay(float heading, float pitch, float roll
   M5.Display.fillCircle(mx, my, 4, moonColor);
   
   // Display celestial information
-  M5.Display.setCursor(10, 170);
+  M5.Display.setCursor(10, 160);
   M5.Display.print("Sun: Az=");
   M5.Display.print(sunAz, 1);
   M5.Display.print(" Alt=");
   M5.Display.print(sunAlt, 1);
   
-  M5.Display.setCursor(10, 185);
+  M5.Display.setCursor(10, 175);
   M5.Display.print("Moon: Az=");
   M5.Display.print(moonAz, 1);
   M5.Display.print(" Alt=");
   M5.Display.print(moonAlt, 1);
   
   // Display moon phase
-  M5.Display.setCursor(10, 200);
+  M5.Display.setCursor(10, 190);
   M5.Display.print("Moon Phase: ");
   M5.Display.print(moonPhase * 100.0, 0);
   M5.Display.println("%");
@@ -455,33 +562,94 @@ void CompassDisplay::showGPS(float latitude, float longitude, float altitude, in
   M5.Display.setTextSize(1);
   
   // Display title
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("GPS Data");
+  M5.Display.setTextColor(TFT_GREEN);
+  M5.Display.setCursor(2, 0);
+  M5.Display.println("RAW GPS DATA:");
   
-  // Display GPS information
-  M5.Display.setCursor(10, 30);
-  M5.Display.print("Latitude: ");
-  M5.Display.println(latitude, 6);
+  // Display GPS status in compact format
+  M5.Display.fillRect(80, 0, 48, 10, TFT_BLACK);
+  M5.Display.setCursor(80, 0);
+  M5.Display.print("GPS:");
   
-  M5.Display.setCursor(10, 45);
-  M5.Display.print("Longitude: ");
-  M5.Display.println(longitude, 6);
+  // Determine GPS status
+  int gpsStatus = 0;
+  if (satellites == 0) {
+    gpsStatus = 0; // No connection
+  } else if (hdop > 5.0) {
+    gpsStatus = 1; // Poor signal
+  } else if (satellites < 4) {
+    gpsStatus = 2; // Acquiring
+  } else {
+    gpsStatus = 3; // Good signal
+  }
   
-  M5.Display.setCursor(10, 60);
-  M5.Display.print("Altitude: ");
-  M5.Display.print(altitude);
-  M5.Display.println("m");
+  // Display GPS status with color
+  switch(gpsStatus) {
+    case 0:
+      M5.Display.setTextColor(TFT_RED);
+      M5.Display.println("NO");
+      break;
+    case 1:
+      M5.Display.setTextColor(TFT_YELLOW);
+      M5.Display.println("NS");
+      break;
+    case 2:
+      M5.Display.setTextColor(TFT_BLUE);
+      M5.Display.println("AQ");
+      break;
+    case 3:
+      M5.Display.setTextColor(TFT_GREEN);
+      M5.Display.println("OK");
+      break;
+  }
   
-  M5.Display.setCursor(10, 75);
-  M5.Display.print("Satellites: ");
-  M5.Display.println(satellites);
+  M5.Display.setTextColor(TFT_WHITE);
+  int y = 15;
   
-  M5.Display.setCursor(10, 90);
+  // Satellites
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Sats: ");
+  M5.Display.print(satellites);
+  y += 8;
+  
+  // Location
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Lat: ");
+  M5.Display.print(latitude, 6);
+  y += 8;
+  
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Lng: ");
+  M5.Display.print(longitude, 6);
+  y += 8;
+  
+  // Altitude
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Alt: ");
+  M5.Display.print(altitude, 1);
+  M5.Display.print("m");
+  y += 8;
+  
+  // HDOP (Horizontal Dilution of Precision)
+  M5.Display.setCursor(2, y);
   M5.Display.print("HDOP: ");
-  M5.Display.println(hdop);
+  M5.Display.print(hdop, 1);
   
-  // Set LED to green
-  setPixelColor(COLOR_GREEN);
+  // Set LED color based on GPS status
+  switch(gpsStatus) {
+    case 0:
+      setPixelColor(COLOR_RED);
+      break;
+    case 1:
+      setPixelColor(COLOR_YELLOW);
+      break;
+    case 2:
+      setPixelColor(COLOR_BLUE);
+      break;
+    case 3:
+      setPixelColor(COLOR_GREEN);
+      break;
+  }
 }
 
 // Display GPS invalid message
@@ -490,23 +658,39 @@ void CompassDisplay::showGPSInvalid() {
   M5.Display.fillScreen(TFT_BLACK);
   
   // Set text settings
-  M5.Display.setTextColor(TFT_RED);
+  M5.Display.setTextColor(TFT_WHITE);
   M5.Display.setTextSize(1);
   
   // Display title
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("GPS Status");
+  M5.Display.setTextColor(TFT_RED);
+  M5.Display.setCursor(2, 0);
+  M5.Display.println("GPS STATUS");
   
-  // Display error message
-  M5.Display.setCursor(10, 40);
-  M5.Display.println("GPS Signal Invalid");
+  // Display GPS status in compact format
+  M5.Display.fillRect(80, 0, 48, 10, TFT_BLACK);
+  M5.Display.setCursor(80, 0);
+  M5.Display.print("GPS:");
+  M5.Display.setTextColor(TFT_RED);
+  M5.Display.println("NO");
   
   M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setCursor(10, 60);
-  M5.Display.println("Waiting for GPS fix...");
   
-  M5.Display.setCursor(10, 80);
-  M5.Display.println("Please ensure clear sky view");
+  // Display error message with more compact layout
+  int y = 20;
+  M5.Display.setCursor(2, y);
+  M5.Display.println("GPS Signal Invalid");
+  y += 10;
+  
+  M5.Display.setCursor(2, y);
+  M5.Display.println("Waiting for GPS fix...");
+  y += 10;
+  
+  M5.Display.setCursor(2, y);
+  M5.Display.println("Check antenna connection");
+  y += 10;
+  
+  M5.Display.setCursor(2, y);
+  M5.Display.println("Ensure clear sky view");
   
   // Set LED to red
   setPixelColor(COLOR_RED);
@@ -522,11 +706,11 @@ void CompassDisplay::showError(const char* message) {
   M5.Display.setTextSize(1);
   
   // Display title
-  M5.Display.setCursor(10, 10);
+  M5.Display.setCursor(10, 0);
   M5.Display.println("Error");
   
   // Display error message
-  M5.Display.setCursor(10, 40);
+  M5.Display.setCursor(10, 20);
   M5.Display.println(message);
   
   // Blink LED red
