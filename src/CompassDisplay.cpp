@@ -252,7 +252,7 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   M5.Display.print("Heading: ");
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.print(heading, 1);
-  M5.Display.println("°");
+  M5.Display.println(" ");
   y += 9;
   
   M5.Display.setTextColor(TFT_YELLOW);
@@ -260,7 +260,7 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   M5.Display.print("Pitch: ");
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.print(pitch, 1);
-  M5.Display.println("°");
+  M5.Display.println(" ");
   y += 9;
   
   M5.Display.setTextColor(TFT_YELLOW);
@@ -268,7 +268,7 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   M5.Display.print("Roll: ");
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.print(roll, 1);
-  M5.Display.println("°");
+  M5.Display.println(" ");
   y += 12;
   
   // Display status indicators with colored icons
@@ -375,7 +375,7 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.print("Heading: ");
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.print(heading, 1);
-  M5.Display.println("°");
+  M5.Display.println(" ");
   y += 9;
   
   // Display Polaris position
@@ -384,7 +384,7 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.print("Polaris Az: ");
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.print(polarisAz, 1);
-  M5.Display.println("°");
+  M5.Display.println(" ");
   y += 9;
   
   M5.Display.setTextColor(TFT_YELLOW);
@@ -392,7 +392,7 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.print("Polaris Alt: ");
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.print(polarisAlt, 1);
-  M5.Display.println("°");
+  M5.Display.println(" ");
   y += 9;
   
   // Display pitch and roll
@@ -401,7 +401,7 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.print("Pitch: ");
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.print(pitch, 1);
-  M5.Display.println("°");
+  M5.Display.println(" ");
   y += 9;
   
   M5.Display.setTextColor(TFT_YELLOW);
@@ -409,57 +409,64 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.print("Roll: ");
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.print(roll, 1);
-  M5.Display.println("°");
+  M5.Display.println(" ");
   
   // 仰角のグラフィック表示を追加
-  y = 110; // 固定位置に配置（画面内に収まるように）
+  // 垂直表示に変更（左側に配置）
+  
+  // 仰角インジケーター
+  int barX = 15; // 少し中央に寄せる
+  int barWidth = 8;
+  int barHeight = radius * 2; // コンパスの円の直径と同じ高さに設定
+  int barY = centerY - radius; // コンパスの円の上端と同じ高さに設定
   
   // 仰角インジケーターのタイトル
   M5.Display.setTextColor(TFT_CYAN);
-  M5.Display.setCursor(2, y);
-  M5.Display.println("Alt Indicator:");
-  y += 10;
-  
-  // 仰角バーの基準位置
-  int barCenterX = M5.Display.width() / 2;
-  int barY = y;
-  int barWidth = 80;
-  int barHeight = 8;
+  M5.Display.setCursor(barX, barY - 10);
+  M5.Display.println("Alt");
   
   // 背景バー（グレー）
-  M5.Display.fillRect(barCenterX - barWidth/2, barY, barWidth, barHeight, TFT_DARKGREY);
+  M5.Display.fillRect(barX, barY, barWidth, barHeight, TFT_DARKGREY);
   
   // 中央マーカー（白）
-  M5.Display.fillRect(barCenterX - 1, barY - 2, 2, barHeight + 4, TFT_WHITE);
+  M5.Display.fillRect(barX - 2, barY + barHeight/2 - 1, barWidth + 4, 2, TFT_WHITE);
   
   // 目標高度マーカー（シアン）
-  int targetPos = barCenterX - barWidth/2 + (int)((polarisAlt / 90.0) * barWidth);
-  targetPos = constrain(targetPos, barCenterX - barWidth/2 + 2, barCenterX + barWidth/2 - 2);
-  M5.Display.fillRect(targetPos - 1, barY - 2, 2, barHeight + 4, TFT_CYAN);
+  int targetPosY = barY + barHeight - (int)((polarisAlt / 90.0) * barHeight);
+  targetPosY = constrain(targetPosY, barY + 2, barY + barHeight - 2);
+  M5.Display.fillRect(barX - 2, targetPosY - 1, barWidth + 4, 2, TFT_CYAN);
   
   // 現在の傾きインジケーター（黄色）
-  int currentPos = barCenterX - barWidth/2 + (int)((pitch / 90.0) * barWidth);
-  currentPos = constrain(currentPos, barCenterX - barWidth/2 + 2, barCenterX + barWidth/2 - 2);
+  int currentPosY = barY + barHeight - (int)((pitch / 90.0) * barHeight);
+  currentPosY = constrain(currentPosY, barY + 2, barY + barHeight - 2);
   M5.Display.fillTriangle(
-    currentPos, barY - 4,
-    currentPos - 4, barY - 8,
-    currentPos + 4, barY - 8,
+    barX - 4, currentPosY,
+    barX - 8, currentPosY - 4,
+    barX - 8, currentPosY + 4,
     TFT_YELLOW
   );
   
-  // 仰角の数値表示（コンパクトに）
-  y += barHeight + 8;
-  M5.Display.setTextColor(TFT_CYAN);
-  M5.Display.setCursor(2, y);
+  // 仰角の数値表示
+  // T:（Target）- 現在のピッチ角からのずれを表示（Nと同じ高さ、右詰め）
+  float deviation = polarisAlt - pitch;
+  M5.Display.setTextColor(TFT_WHITE);
+  // Nの位置を計算（コンパスの上端）
+  int northY = centerY - radius - 8;
+  M5.Display.setCursor(M5.Display.width() - 45, northY);
   M5.Display.print("T:");
-  M5.Display.print(polarisAlt, 1);
-  M5.Display.print("°  ");
+  if (deviation > 0) M5.Display.print("+");
+  M5.Display.print(deviation, 1);
+  M5.Display.print(" "); // 単位を空白に変更
   
+  // C:（Current）- 現在のピッチ角を表示（Sと同じ高さ、右詰め）
   M5.Display.setTextColor(TFT_YELLOW);
+  // Sの位置を計算（コンパスの下端）
+  int southY = centerY + radius + 2;
+  M5.Display.setCursor(M5.Display.width() - 45, southY);
   M5.Display.print("C:");
   M5.Display.print(pitch, 1);
-  M5.Display.println("°");
-  
+  M5.Display.print(" "); // 単位を空白に変更
+
   // Set LED to blue
   setPixelColor(COLOR_BLUE);
 }
@@ -483,7 +490,7 @@ void CompassDisplay::showCelestialOverlay(float heading, float pitch, float roll
   M5.Display.setCursor(10, 30); // 20から30に変更（10ピクセル下げる）
   M5.Display.print("Heading: ");
   M5.Display.print(heading, 1);
-  M5.Display.println(" deg");
+  M5.Display.println(" ");
   
   // Draw compass rose
   int centerX = M5.Display.width() / 2;
