@@ -9,6 +9,7 @@ Polaris Navigator is a compact, portable device designed to assist astrophotogra
 ## Features
 
 - **Polar Alignment Assistance**: Calculates and displays azimuth and altitude errors relative to the celestial pole
+- **Altitude Indicator**: Visual representation of target altitude (Polaris) and current device pitch
 - **Celestial Object Tracking**: Shows the direction of the sun and moon
 - **Moon Phase Display**: Calculates and displays the current moon phase
 - **GPS Data Display**: Shows raw GPS data including latitude, longitude, and satellite status
@@ -37,6 +38,24 @@ Calibration status is displayed in three levels (GOOD, OK, POOR) and shows "NOT 
 - The IMU functionality uses custom `IMUFusion`, `BMI270`, and `BMM150class` classes instead of the M5.Imu class
 - The IMUFusion class provides sensor fusion algorithms for accurate orientation data
 - GPS communication uses pins: TX = 5, RX = -1 (when using AtomicBase GPS)
+- GPS data is saved to flash memory and reused when GPS signal is unavailable
+- The UI is optimized for the small AtomS3R display with clear indicators for alignment
+
+## Usage
+
+### Polar Alignment Mode
+1. The main screen shows a compass with the current heading and Polaris position
+2. Align the red line (current heading) with the cyan star marker (Polaris)
+3. Use the altitude indicator to match the current pitch (yellow triangle) with the target altitude (cyan marker)
+4. When both azimuth and altitude are aligned, your mount is properly polar aligned
+
+### Raw Data Modes
+Press the button to cycle through different data display modes:
+- IMU data
+- GPS data
+- Celestial data
+- System information
+- Debug information
 
 ## Development Status
 

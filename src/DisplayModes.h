@@ -17,8 +17,7 @@ enum DisplayMode {
   IMU_DATA = 2,
   CELESTIAL_DATA = 3,
   RAW_DATA = 4,
-  SETTINGS_MENU = 5,
-  CALIBRATION_MODE = 6
+  CALIBRATION_MODE = 5
 };
 
 // Raw data display modes

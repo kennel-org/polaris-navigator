@@ -28,7 +28,10 @@ public:
   // Update display with raw data
   void update(RawDataMode mode);
   
-  // Display raw IMU data
+  // Display raw IMU data (グローバル変数から値を取得)
+  void showRawIMU();
+  
+  // Display raw IMU data with parameters
   void showRawIMU(BMI270* bmi270, BMM150class* bmm150, 
                  float heading, float pitch, float roll,
                  bool calibrated);
@@ -46,8 +49,7 @@ public:
                        float polarisAz, float polarisAlt);
   
   // Display system information
-  void showSystemInfo(float batteryLevel, float temperature, 
-                     unsigned long uptime, int freeMemory);
+  void showSystemInfo();
   
   // Display debug information
   void showDebugInfo(const char* debugMessage);
@@ -60,6 +62,9 @@ public:
   
   // Set pixel color (for RGB LED)
   void setPixelColor(uint32_t color);
+  
+  // 現在のモードを取得
+  RawDataMode getCurrentMode() const { return _currentMode; }
   
 private:
   // Helper methods

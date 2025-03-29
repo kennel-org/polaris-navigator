@@ -75,9 +75,6 @@ public:
   // Display IMU data
   void showIMU();
   
-  // Display settings menu
-  void showSettings();
-  
   // Display error message
   void showError(const char* message);
   

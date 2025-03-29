@@ -20,6 +20,7 @@
 // GPS related
 #include "src/AtomicBaseGPS.h"   // AtomicBase GPS module
 #include <TinyGPSPlus.h>         // GPS parser
+#include "src/GPSDataManager.h"  // GPS data storage manager
 
 // Display related
 #include "src/CompassDisplay.h"  // Compass display
@@ -38,7 +39,7 @@
 // Constants
 #define GPS_BAUD 9600        // GPS baud rate
 #define SERIAL_BAUD 115200   // Serial monitor baud rate
-#define UPDATE_INTERVAL 1000  // LCD更新間隔（ミリ秒）- ちらつき軽減のため長めに設定
+#define UPDATE_INTERVAL 200  // LCD更新間隔（ミリ秒）- 応答性向上のため短く設定
 
 // GPS pins for AtomicBase GPS
 // 注: これらの定義はAtomicBaseGPS.hですでに定義されているため、ここでは参照用です
@@ -55,6 +56,7 @@ RawDataDisplay rawDisplay;   // Raw data display object
 CalibrationManager calibrationManager(&bmi270, &bmm150); // Calibration manager
 SettingsManager settingsManager;  // Settings manager
 SettingsMenu settingsMenu(&settingsManager); // Settings menu
+GPSDataManager gpsDataManager;  // GPS data manager
 
 // GPS data
 float latitude = 0.0;
@@ -63,6 +65,8 @@ float altitude = 0.0;
 int satellites = 0;
 bool gpsValid = false;
 float hdop = 99.99;          // Horizontal dilution of precision
+bool wasGpsValid = false;    // 前回のGPS有効状態を記録
+unsigned long lastGpsUpdate = 0; // 最終GPS更新時刻
 
 // Time data
 int year = 2025;
@@ -159,6 +163,9 @@ void setup() {
   settingsManager.begin();
   settingsMenu.begin();
   
+  // Initialize GPS data manager
+  gpsDataManager.begin();
+  
   // Initialize timing
   lastUpdateTime = millis();
   
@@ -179,10 +186,10 @@ void loop() {
   unsigned long deltaTime = currentTime - lastUpdateTime;
   lastUpdateTime = currentTime;
   
-  // Update button state
+  // Update button state - 最優先で処理
   M5.update();
   
-  // Handle button presses
+  // Handle button presses - ボタン処理を最優先
   handleButtonPress();
   
   // Read sensor data and update fusion
@@ -197,19 +204,16 @@ void loop() {
     calculateCelestialPositions();
   }
   
-  // LCD更新は一定間隔で実行（ちらつき軽減）
+  // LCD更新は一定間隔で実行（ちらつき軽減と応答性のバランス）
   static unsigned long lastDisplayTime = 0;
   if (currentTime - lastDisplayTime >= UPDATE_INTERVAL) {
     lastDisplayTime = currentTime;
     
-    // LCD更新前に短い遅延を追加（ちらつき軽減）
-    delay(5);
-    
     // LCD更新
     updateDisplay();
     
-    // LCD更新後に短い遅延を追加（ちらつき軽減）
-    delay(5);
+    // 遅延を短くして応答性を向上
+    delay(1);
   }
 }
 
@@ -416,22 +420,119 @@ void readGPS() {
   gps.update();
   
   // Check if GPS data is valid
-  gpsValid = gps.isValid();
+  bool currentGpsValid = gps.isValid();
   
-  if (gpsValid) {
-    // Update GPS variables
-    latitude = gps.getLatitude();
-    longitude = gps.getLongitude();
-    altitude = gps.getAltitude();
-    satellites = gps.getSatellites();
-    hdop = gps.getHDOP();
+  // GPS信号が有効な場合
+  if (currentGpsValid) {
+    // GPS信号が無効→有効に変わった場合、または60分経過した場合にデータを更新
+    unsigned long currentTime = millis();
+    bool shouldUpdate = !wasGpsValid || (currentTime - lastGpsUpdate >= 60 * 60 * 1000);
     
-    // Update time from GPS if available
-    if (gps.getTime(&hour, &minute, &second) && 
-        gps.getDate(&year, &month, &day)) {
-      timeValid = true;
+    // millis()のオーバーフロー対策
+    if (currentTime < lastGpsUpdate) {
+      shouldUpdate = true;
+    }
+    
+    if (shouldUpdate) {
+      // 最終更新時刻を更新
+      lastGpsUpdate = currentTime;
       
-      // Debug time output
+      // GPS変数を更新
+      latitude = gps.getLatitude();
+      longitude = gps.getLongitude();
+      altitude = gps.getAltitude();
+      satellites = gps.getSatellites();
+      hdop = gps.getHDOP();
+      
+      // GPSから時刻を更新（利用可能な場合）
+      if (gps.getTime(&hour, &minute, &second) && 
+          gps.getDate(&year, &month, &day)) {
+        timeValid = true;
+        
+        // デバッグ用時刻出力
+        Serial.print("Date/Time: ");
+        Serial.print(year);
+        Serial.print("-");
+        Serial.print(month);
+        Serial.print("-");
+        Serial.print(day);
+        Serial.print(" ");
+        Serial.print(hour);
+        Serial.print(":");
+        Serial.print(minute);
+        Serial.print(":");
+        Serial.println(second);
+        
+        // 有効なGPSデータをGPSDataManagerに保存
+        GPSData data;
+        data.latitude = latitude;
+        data.longitude = longitude;
+        data.altitude = altitude;
+        data.satellites = satellites;
+        data.hdop = hdop;
+        data.year = year;
+        data.month = month;
+        data.day = day;
+        data.hour = hour;
+        data.minute = minute;
+        data.second = second;
+        
+        // データを保存
+        gpsDataManager.saveGPSData(data);
+        
+        // 更新理由をデバッグ出力
+        if (!wasGpsValid) {
+          Serial.println("GPS data updated: Signal newly acquired");
+        } else {
+          Serial.println("GPS data updated: 60-minute interval");
+        }
+      }
+      
+      // デバッグ出力
+      Serial.print("GPS: ");
+      Serial.print(latitude, 6);
+      Serial.print(", ");
+      Serial.print(longitude, 6);
+      Serial.print(" Alt: ");
+      Serial.print(altitude);
+      Serial.print("m Sats: ");
+      Serial.print(satellites);
+      Serial.print(" HDOP: ");
+      Serial.println(hdop);
+    } else {
+      // 更新しない場合のデバッグ出力
+      Serial.println("Using current GPS data (update not needed)");
+    }
+    
+    // GPS有効フラグを更新
+    gpsValid = true;
+    wasGpsValid = true;
+  } 
+  // GPS信号が無効で、保存されたデータがある場合
+  else if (!currentGpsValid && gpsDataManager.hasStoredData()) {
+    // 保存されたGPSデータを読み込む
+    GPSData savedData;
+    if (gpsDataManager.loadGPSData(savedData)) {
+      // 保存されたデータで変数を更新
+      latitude = savedData.latitude;
+      longitude = savedData.longitude;
+      altitude = savedData.altitude;
+      satellites = savedData.satellites;
+      hdop = savedData.hdop;
+      
+      year = savedData.year;
+      month = savedData.month;
+      day = savedData.day;
+      hour = savedData.hour;
+      minute = savedData.minute;
+      second = savedData.second;
+      
+      // 保存されたデータを使用していることを示すデバッグ出力
+      Serial.println("Using saved GPS data:");
+      Serial.print("Location: ");
+      Serial.print(latitude, 6);
+      Serial.print(", ");
+      Serial.println(longitude, 6);
       Serial.print("Date/Time: ");
       Serial.print(year);
       Serial.print("-");
@@ -444,19 +545,23 @@ void readGPS() {
       Serial.print(minute);
       Serial.print(":");
       Serial.println(second);
+      
+      // GPS有効フラグとタイム有効フラグを更新
+      gpsValid = true;
+      timeValid = true;
     }
     
-    // Debug output
-    Serial.print("GPS: ");
-    Serial.print(latitude, 6);
-    Serial.print(", ");
-    Serial.print(longitude, 6);
-    Serial.print(" Alt: ");
-    Serial.print(altitude);
-    Serial.print("m Sats: ");
-    Serial.print(satellites);
-    Serial.print(" HDOP: ");
-    Serial.println(hdop);
+    // GPS無効フラグを更新
+    wasGpsValid = false;
+  }
+  // GPS信号が無効で、保存されたデータもない場合
+  else {
+    // GPS無効フラグを設定
+    gpsValid = false;
+    wasGpsValid = false;
+    
+    // デバッグ出力
+    Serial.println("No GPS signal and no saved data available");
   }
 }
 
@@ -649,15 +754,15 @@ void updateDisplay() {
       break;
     case RAW_DATA:
       // Raw data mode - Display raw sensor data
+      if (rawDisplay.getCurrentMode() == RAW_IMU) {
+        // IMUデータを強制的に再取得して表示を更新
+        readIMU();
+      }
       rawDisplay.update(currentRawMode);  
       break;
     case IMU_DATA:
       // IMU data mode - Display detailed IMU sensor data
       display.showIMU();
-      break;
-    case SETTINGS_MENU:  
-      // Settings mode - Display settings menu
-      display.showSettings();
       break;
     case CALIBRATION_MODE:
       // Calibration mode - handled by main loop
@@ -665,7 +770,7 @@ void updateDisplay() {
   }
   
   // Add a small delay after updating display to reduce flickering
-  delay(10);
+  delay(1);
   
   // Output debug information to serial
   Serial.print("Display Mode: ");
@@ -679,23 +784,15 @@ void updateDisplay() {
 void handleButtonPress() {
   // Handle button press
   if (M5.BtnA.wasPressed()) {
-    // Check if settings menu is active
-    if (currentMode == SETTINGS_MENU && settingsMenu.isActive()) {
-      // Pass short press to settings menu
-      settingsMenu.handleButtonPress(true, false);
-      return;
+    // Short press - cycle through display modes or sub-modes
+    if (currentMode == RAW_DATA) {
+      // RAW_DATAモード内ではサブモードを切り替え
+      cycleRawDataMode();
+    } else {
+      // 他のモードでは通常のモード切り替え
+      cycleDisplayMode();
     }
-    
-    // Short press - cycle through display modes
-    cycleDisplayMode();
   } else if (M5.BtnA.pressedFor(1000)) {
-    // Check if settings menu is active
-    if (currentMode == SETTINGS_MENU && settingsMenu.isActive()) {
-      // Pass long press to settings menu
-      settingsMenu.handleButtonPress(false, true);
-      return;
-    }
-    
     // Long press - perform mode-specific action
     handleLongPress();
   }
@@ -715,11 +812,10 @@ void cycleDisplayMode() {
       break;
     case CELESTIAL_DATA: 
       currentMode = RAW_DATA;
+      // RAW_DATAモードに入る時は、サブモードをRAW_IMUに初期化
+      currentRawMode = RAW_IMU;
       break;
     case RAW_DATA: 
-      currentMode = SETTINGS_MENU;
-      break;
-    case SETTINGS_MENU: 
       currentMode = CALIBRATION_MODE;
       break;
     case CALIBRATION_MODE: 
@@ -758,19 +854,9 @@ void handleLongPress() {
       break;
       
     case RAW_DATA: 
-      // Cycle through raw data modes
-      cycleRawDataMode();
-      break;
-      
-    case SETTINGS_MENU: 
-      // Handle settings menu interaction
-      if (settingsMenu.isActive()) {
-        // Handle long press in settings menu
-        settingsMenu.handleButtonPress(false, true);
-      } else {
-        // Activate settings menu
-        settingsMenu.show();
-      }
+      // RAW_DATAモードでの長押しはメインモードを切り替え
+      currentMode = CALIBRATION_MODE;
+      updateDisplay();
       break;
       
     case CALIBRATION_MODE: 
@@ -803,8 +889,10 @@ void cycleRawDataMode() {
       currentRawMode = DISPLAY_DEBUG; 
       break;
     case DISPLAY_DEBUG: 
-      currentRawMode = RAW_IMU; 
-      break;
+      // DEBUGモードの後は直接初期画面に戻る
+      currentMode = POLAR_ALIGNMENT;  // 直接初期画面に戻る
+      updateDisplay();
+      return;  // 以降の処理をスキップ
   }
   
   // Update display with new raw data mode
