@@ -208,15 +208,8 @@ void setupHardware() {
 }
 
 void setupIMU() {
-  // 画面の初期化のみを行う（背景色は設定しない）
-  M5.Display.clear();
-  
-  // 画面下部18ピクセルに2行だけで表示
-  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setTextSize(1.0);
-  M5.Display.setCursor(5, M5.Display.height() - 18);
-  M5.Display.println("IMU");
+  // 初期化状態を表示（StartupScreenクラスを使用）
+  startupScreen.showInitProgress("IMU Init...", 30);
   
   // M5Unifiedライブラリを使用してIMUを初期化
   bool initResult = M5.Imu.init();
@@ -230,12 +223,7 @@ void setupIMU() {
   
   if(!imuType){
     // 初期化失敗の場合
-    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-    M5.Display.setTextColor(TFT_WHITE);
-    M5.Display.setCursor(5, M5.Display.height() - 18);
-    M5.Display.println("IMU Init Failed!");
-    M5.Display.setCursor(5, M5.Display.height() - 8);
-    M5.Display.println("Retrying...");
+    startupScreen.showInitError("IMU Init Failed!");
     
     Serial.println("IMU initialization failed! No IMU detected.");
     
@@ -247,72 +235,20 @@ void setupIMU() {
     
     if(!imuType) {
       Serial.println("IMU retry failed. Check hardware connections.");
-      M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-      M5.Display.setTextColor(TFT_WHITE);
-      M5.Display.setCursor(5, M5.Display.height() - 18);
-      M5.Display.println("IMU Failed!");
-      M5.Display.setCursor(5, M5.Display.height() - 8);
-      M5.Display.println("Check hardware!");
-      delay(2000);
+      startupScreen.showInitError("IMU Failed!");
+      delay(1000);
       return;
-    } else {
-      Serial.println("IMU retry successful!");
-      M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-      M5.Display.setTextColor(TFT_WHITE);
-      M5.Display.setCursor(5, M5.Display.height() - 18);
-      M5.Display.println("IMU Retry OK!");
     }
   }
   
-  // センサー範囲設定
-  // M5.Imu.setAccelRange(BMI2_16G);      // 加速度計レンジ
-  // M5.Imu.setGyroRange(BMI2_2000_DPS);  // ジャイロレンジ
-  // M5.Imu.setMagOpMode(BMM150_NORMAL_MODE); // 磁力計動作モード
-  // 注: 磁力計の動作モードはbmm150.initialize()内で設定されます
-  
-  // IMUデータのテスト読み取り
-  float acc[3], gyro[3], mag[3];
-  
-  // センサーデータを取得
-  bool accOk = M5.Imu.getAccel(&acc[0], &acc[1], &acc[2]);    // 加速度 (g)
-  bool gyroOk = M5.Imu.getGyro(&gyro[0], &gyro[1], &gyro[2]);  // 角速度 (dps)
-  bool magOk = M5.Imu.getMag(&mag[0], &mag[1], &mag[2]);      // 地磁気 (μT)
-  
-  Serial.print("Accel read: ");
-  Serial.println(accOk ? "OK" : "Failed");
-  Serial.print("Gyro read: ");
-  Serial.println(gyroOk ? "OK" : "Failed");
-  Serial.print("Mag read: ");
-  Serial.println(magOk ? "OK" : "Failed");
-  
-  // 初期化成功の表示
-  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setCursor(5, M5.Display.height() - 18);
-  M5.Display.println("IMU OK");
-  M5.Display.setCursor(5, M5.Display.height() - 8);
-  M5.Display.printf("A:%s G:%s M:%s", accOk?"OK":"NG", gyroOk?"OK":"NG", magOk?"OK":"NG");
-  
-  // キャリブレーションなしでも有効とする
-  Serial.println("Using M5Unified with default calibration");
-  imuCalibrated = true;  // キャリブレーションなしでも有効とする
-  
-  delay(1000);
-  Serial.println("IMU setup complete");
+  // センサー初期化成功
+  startupScreen.showInitProgress("IMU OK", 50);
+  Serial.println("IMU initialized successfully");
 }
 
 void setupGPS() {
-  // 画面の初期化のみを行う（背景色は設定しない）
-  M5.Display.clear();
-  
-  // 画面下部18ピクセルに2行だけで表示
-  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setTextSize(1.0);
-  M5.Display.setCursor(5, M5.Display.height() - 18);
-  M5.Display.println("GPS");
-  M5.Display.setCursor(5, M5.Display.height() - 8);
-  M5.Display.printf("TX:%d RX:%d", GPS_TX_PIN, GPS_RX_PIN);
+  // 初期化状態を表示（StartupScreenクラスを使用）
+  startupScreen.showInitProgress("GPS Init...", 60);
   
   // デバッグ情報をシリアルに出力
   Serial.println("Initializing GPS with default pins (TX:5, RX:-1)");
@@ -324,20 +260,10 @@ void setupGPS() {
   // AtomicBaseGPSクラスのデフォルトピン設定を使用
   bool gpsResult = gps.begin(GPS_BAUD);
   if (gpsResult) {
-    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-    M5.Display.setTextColor(TFT_WHITE);
-    M5.Display.setCursor(5, M5.Display.height() - 18);
-    M5.Display.println("GPS OK");
-    M5.Display.setCursor(5, M5.Display.height() - 8);
-    M5.Display.println("Waiting...");
+    startupScreen.showInitProgress("GPS OK", 70);
     Serial.println("GPS initialized");
   } else {
-    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-    M5.Display.setTextColor(TFT_WHITE);
-    M5.Display.setCursor(5, M5.Display.height() - 18);
-    M5.Display.println("GPS Failed");
-    M5.Display.setCursor(5, M5.Display.height() - 8);
-    M5.Display.println("Retrying...");
+    startupScreen.showInitProgress("GPS Failed, Retry...", 65);
     Serial.println("Failed to initialize GPS!");
     
     // 再試行
@@ -345,21 +271,13 @@ void setupGPS() {
     delay(500);
     gpsResult = gps.begin(GPS_BAUD);
     if (gpsResult) {
-      M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-      M5.Display.setTextColor(TFT_WHITE);
-      M5.Display.setCursor(5, M5.Display.height() - 18);
-      M5.Display.println("GPS Retry OK");
-      M5.Display.setCursor(5, M5.Display.height() - 8);
-      M5.Display.println("Waiting...");
+      startupScreen.showInitProgress("GPS Retry OK", 70);
       Serial.println("GPS retry successful");
     } else {
-      M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-      M5.Display.setTextColor(TFT_WHITE);
-      M5.Display.setCursor(5, M5.Display.height() - 18);
-      M5.Display.println("GPS Failed");
-      M5.Display.setCursor(5, M5.Display.height() - 8);
-      M5.Display.println("Check HW");
+      startupScreen.showInitError("GPS Failed");
       Serial.println("GPS retry failed. Check hardware connections.");
+      delay(1000);
+      return;
     }
   }
   
@@ -369,6 +287,7 @@ void setupGPS() {
   
   // Wait for initial GPS data
   Serial.println("Waiting for initial GPS data...");
+  startupScreen.showInitProgress("Waiting for GPS...", 75);
   
   // Try to get initial GPS data with timeout
   unsigned long startTime = millis();
@@ -384,20 +303,10 @@ void setupGPS() {
   }
   
   if (initialDataReceived) {
-    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-    M5.Display.setTextColor(TFT_WHITE);
-    M5.Display.setCursor(5, M5.Display.height() - 18);
-    M5.Display.println("GPS Signal OK");
-    M5.Display.setCursor(5, M5.Display.height() - 8);
-    M5.Display.println("Continuing...");
+    startupScreen.showInitProgress("GPS Signal OK", 80);
     Serial.println("Initial GPS data received");
   } else {
-    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
-    M5.Display.setTextColor(TFT_WHITE);
-    M5.Display.setCursor(5, M5.Display.height() - 18);
-    M5.Display.println("No GPS Signal");
-    M5.Display.setCursor(5, M5.Display.height() - 8);
-    M5.Display.println("Continuing...");
+    startupScreen.showInitProgress("No GPS Signal", 80);
     Serial.println("No initial GPS data received within timeout");
   }
   

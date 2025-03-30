@@ -210,7 +210,8 @@ duplicate case value
 - **傾き表示の視覚化**
   - ピッチとロールを円の位置で視覚的に表現
   - 基準円（水平位置）と現在の傾き位置（緑の円）を表示
-  - 最大±30度の傾きを円の半径に対応させる
+  - 白色のマーカー：中央位置
+  - AtomS3Rの小さな画面に合わせて表示位置を最適化（y=110に固定）
 
 - **データ構造設計**
   - IMUデータはフラットな構造体で管理
@@ -331,119 +332,6 @@ M5AtomS3の小さな画面（128x128ピクセル）に合わせて表示を調�
   ```bash
   arduino-cli upload -p COM10 --fqbn m5stack:esp32:m5stack_atoms3r Polaris_Navigator
   ```
-
-## M5AtomS3のディスプレイ制御
-
-### 画面遷移と応答性の最適化
-
-- **画面遷移の遅延問題**
-  - **症状**: GPS Statusから画面移行が遅い、ボタン入力に対する応答が遅い
-  - **原因**:
-    - `showGPSInvalid`関数内の`blinkPixel`呼び出しによる長い遅延（900ms以上）
-    - `UPDATE_INTERVAL`が長すぎる（1000ms）
-    - ループ内の遅延（delay）が多すぎる
-  
-  - **解決策**:
-    - `blinkPixel`呼び出しを削除し、単純に`setPixelColor`のみを使用
-    - `UPDATE_INTERVAL`を短く設定（200ms程度）
-    - ループ内の遅延を最小限に抑える（1-2ms程度）
-    - ボタン処理を最優先で行うようにコードの順序を調整
-
-  - **実装例**:
-  ```cpp
-  // 遅延を引き起こす実装（避けるべき）
-  blinkPixel(COLOR_RED, COLOR_BLACK, 3, 300); // 合計900ms以上の遅延
-  
-  // 推奨される実装
-  setPixelColor(COLOR_RED); // 遅延なし
-  ```
-
-- **画面更新頻度の最適化**
-  - 画面更新間隔（`UPDATE_INTERVAL`）は応答性とちらつきのバランスを考慮して設定
-  - 推奨値: 200ms（応答性重視）〜500ms（ちらつき軽減重視）
-  - ループ内の遅延は1-2ms程度に抑える
-
-### M5AtomS3のLCDとLEDの制御
-
-M5AtomS3デバイスには以下の2つの表示/出力機能があり、それぞれ異なる制御方法を使用します：
-
-1. **LCD（ディスプレイ）**：
-   - `M5.Display`（M5Unified）を使用して制御
-   - ちらつき問題はこのLCDに関するもの
-   - 明るさ調整、更新間隔の最適化などでちらつきを軽減可能
-
-2. **LED（RGB LED）**：
-   - `M5.dis.drawpix()`を使用して制御
-   - 色は0xRRGGBB形式の16進数で指定
-   - `CompassDisplay`クラスの`setPixelColor`関数はこのLEDを制御するためのもの
-
-これらは別々のハードウェアコンポーネントであり、制御方法も異なるため、コード内で明確に区別する必要があります。
-
-### IMUセンサー
-
-#### RAW IMU DATAの表示問題
-
-- **症状**: RAW IMU DATAモードが無反応、データが表示されない、または全て0のまま
-- **原因**:
-  - IMUデータ取得関数名の不一致（`getAccelData`vs`getAccel`など）
-  - グローバル変数へのアクセス方法の問題
-  - 更新頻度が低すぎる（1000ms）
-
-- **解決策**:
-  - M5Unifiedライブラリの正しい関数名を使用（`getAccel`, `getGyro`, `getMag`）
-  - センサーデータの取得状態を確認し、エラー処理を追加
-  - 更新頻度を上げる（200ms程度）
-
-- **実装例**:
-```cpp
-// 正しいIMUデータ取得方法
-float acc[3], gyro[3], mag[3];
-bool accOk = false, gyroOk = false, magOk = false;
-
-// センサーデータを取得
-accOk = M5.Imu.getAccel(&acc[0], &acc[1], &acc[2]);    // 加速度 (g)
-gyroOk = M5.Imu.getGyro(&gyro[0], &gyro[1], &gyro[2]);  // 角速度 (dps)
-magOk = M5.Imu.getMag(&mag[0], &mag[1], &mag[2]);      // 地磁気 (μT)
-
-// センサー状態の表示
-M5.Display.print("Acc: ");
-M5.Display.print(accOk ? "OK" : "NG");
-```
-
-#### AtomS3R IMUセンサー詳細仕様
-{{ ... }}
-
-## GPS関連のノウハウ
-
-### GPS信号受信と時刻処理
-
-- **AtomicBase GPS**:
-  - GPS_TX_PIN = 5
-  - GPS_RX_PIN = -1（AtomicBase GPSを使用する場合）
-  - ボーレート: 9600bps
-
-#### GPSが見えない場合の時刻処理
-
-- **初期値の設定**:
-  - 時刻データの初期値: 2025年3月23日 00:00:00
-  - `timeValid` フラグは `false` に設定
-
-- **時刻更新の条件**:
-  - GPSが有効（`gpsValid = true`）かつGPSから時刻データが取得できた場合のみ時刻が更新される
-  - GPSが見えない場合は時刻の更新は行われず、`timeValid` フラグは `false` のまま
-
-- **天体位置計算への影響**:
-  - 極軸（北極星/天の北極）の位置計算は時刻に依存せず、緯度・経度のみで計算される
-  - 太陽と月の位置計算は `timeValid` が `true` の場合のみ実行される
-  - GPSが見えない場合、太陽と月の位置は計算・表示されない
-
-- **表示への影響**:
-  - 極軸合わせモード（POLAR_ALIGNMENT）は時刻に依存しないため、GPS位置情報があれば機能する
-  - 天体オーバーレイモード（CELESTIAL_DATA）は時刻に依存するため、GPS時刻が取得できない場合は太陽・月の位置が表示されない
-
-- **対応策**:
-  - 屋外で使用する前に、GPSが十分な衛星を捕捉するまで待つ（通常3-5分）
-  - 極軸合わせのみを行う場合は、GPSから位置情報さえ取得できれば時刻は不要
 
 ## パフォーマンスの最適化
 
@@ -621,8 +509,7 @@ GitHub CLIを使用すると、ブラウザを開かずにプルリクエスト�
 
 - **AtomS3Rのメモリ制約**:
   - AtomS3Rは限られたメモリリソースしか持ちません
-  - スプライトを使用したダブルバッファリングはメモリアクセス違反を引き起こす可能性があります
-  - 特に表示モードを切り替える際に問題が発生しやすいです
+  - スプライトを使用する表示メソッドがメモリ不足で失敗
 
 - **直接描画 vs スプライト**:
   - スプライトベースのレンダリングは滑らかな更新を提供しますが、より多くのメモリを必要とします
@@ -788,3 +675,86 @@ void CompassDisplay::showPolarAlignment(float azimuth, float altitude) {
 ```cpp
 Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
 ```
+
+## 起動画面とロゴ表示
+
+### ロゴ表示の実装
+
+- **概要**: 起動画面にロゴを表示し、初期化プロセス中も維持する機能
+- **実装方法**:
+  - `icon.h`からロゴデータを読み込み、起動画面上部に表示
+  - 画面下部18ピクセルをステータスメッセージ用に確保
+  - 初期化メッセージ表示時は下部領域のみをクリア
+
+- **実装例**:
+```cpp
+// ロゴ表示（StartupScreen.cpp）
+void StartupScreen::drawLogo() {
+  // ロゴを画面上部に表示
+  M5.Display.drawBitmap(
+    (M5.Display.width() - LOGO_WIDTH) / 2, 
+    10, 
+    LOGO_WIDTH, 
+    LOGO_HEIGHT, 
+    logoData
+  );
+}
+
+// 初期化進捗表示（下部18ピクセルのみクリア）
+void StartupScreen::showInitProgress(const char* message, int progressPercent) {
+  // 下部18ピクセルのみをクリア
+  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+  
+  // メッセージを表示
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.setCursor(5, M5.Display.height() - 18);
+  M5.Display.printf("%s", message);
+}
+```
+
+### 画面輝度の一貫性確保
+
+- **問題**: 初期化完了時に画面輝度が変化して見える
+- **原因**: LED色の変更が画面の見え方に影響
+- **解決策**:
+  - 輝度を明示的に再設定（40%に統一）
+  - LED色を暗めの緑色（0x007F00）に調整
+  - 初期化完了メッセージを中央揃えに変更
+
+- **実装例**:
+```cpp
+void StartupScreen::showInitComplete() {
+  // 下部18ピクセルのみをクリア
+  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+  
+  // 輝度を明示的に再設定
+  M5.Display.setBrightness(40);
+  
+  // メッセージを中央に表示
+  M5.Display.setTextColor(TFT_WHITE);
+  int textWidth = 12 * 12; // "Init Complete"の幅を概算
+  int xPos = (M5.Display.width() - textWidth) / 2;
+  M5.Display.setCursor(xPos, M5.Display.height() - 12);
+  M5.Display.println("Init Complete");
+  
+  // 暗めの緑色を使用
+  setLedColor(0x007F00);
+  
+  // 表示を確認するための短い遅延
+  delay(1000);
+}
+```
+
+### 実装上の注意点
+
+1. **部分的な画面クリア**:
+   - 全画面クリア（`fillScreen`）を避け、必要な部分のみ（`fillRect`）をクリアする
+   - これにより、ロゴが初期化プロセス中も表示され続ける
+
+2. **LED色と画面の見え方**:
+   - RGB LEDの色が明るすぎると、画面の見え方（特に輝度）に影響する
+   - 暗めの色を使用するか、輝度を明示的に再設定する
+
+3. **メモリ使用量の最適化**:
+   - ロゴデータは静的配列として保存し、動的メモリ割り当てを避ける
+   - 必要最小限のサイズでロゴを作成し、メモリ使用量を抑える
