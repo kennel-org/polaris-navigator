@@ -27,11 +27,7 @@
 #include "src/RawDataDisplay.h"  // Raw data display
 #include "src/CelestialOverlay.h" // Celestial overlay
 #include "src/DisplayModes.h"    // Display mode definitions
-#include "src/logo.h"            // App logo
-
-// SPIFFS must be included before PNGLoader.h
-#include <SPIFFS.h>              // SPIFFSファイルシステム
-#include "src/PNGLoader.h"       // PNG画像ローダー
+#include "src/StartupScreen.h"   // Startup screen
 
 // Celestial calculations
 #include "src/celestial_math.h"  // Custom celestial calculations
@@ -62,6 +58,7 @@ CalibrationManager calibrationManager(&bmi270, &bmm150); // Calibration manager
 SettingsManager settingsManager;  // Settings manager
 SettingsMenu settingsMenu(&settingsManager); // Settings menu
 GPSDataManager gpsDataManager;  // GPS data manager
+StartupScreen startupScreen;    // Startup screen object
 
 // GPS data
 float latitude = 0.0;
@@ -151,109 +148,32 @@ void setup() {
   // Initialize hardware
   setupHardware();
   
-  // スプラッシュ画面（起動画面）の表示
-  M5.Display.fillScreen(TFT_NAVY);
+  // Initialize startup screen
+  startupScreen.begin();
   
-  // ロゴの表示（PNG画像を使用）
-  if (SPIFFS.exists("/logo.png")) {
-    // PNG画像が存在する場合はそれを表示
-    int centerX = (M5.Display.width() - 64) / 2;
-    int centerY = 20;
-    if (drawPNG("/logo.png", centerX, centerY)) {
-      Serial.println("PNG logo displayed successfully");
-    } else {
-      // PNG表示に失敗した場合はバックアップとして組み込みロゴを使用
-      Serial.println("Falling back to embedded logo");
-      drawNavigatorLogo(32, 20, 64);
-    }
-  } else {
-    // PNG画像がない場合は組み込みロゴを使用
-    Serial.println("PNG logo not found, using embedded logo");
-    drawNavigatorLogo(32, 20, 64);
-  }
+  // Show splash screen
+  startupScreen.showSplashScreen();
   
-  // アプリ名の表示
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setTextSize(1);
-  M5.Display.setCursor(20, 100);
-  M5.Display.println("Polaris Navigator");
-  
-  // バージョン情報
-  M5.Display.setTextSize(0.8);
-  M5.Display.setCursor(35, 115);
-  M5.Display.println("v1.0.0 (2025)");
-  
-  delay(2000); // スプラッシュ画面を2秒間表示
+  // Wait for splash screen display
+  delay(2000);
   
   // Initialize sensors
   setupIMU();
   setupGPS();
-  
-  // Initialize display
   display.begin();
   
-  // Initialize raw data display
+  // Initialize other components
   rawDisplay.begin();
-  
-  // Initialize calibration manager
   calibrationManager.begin();
-  
-  // Initialize settings manager and menu
   settingsManager.begin();
   settingsMenu.begin();
-  
-  // Initialize GPS data manager
   gpsDataManager.begin();
   
   // Initialize timing
   lastUpdateTime = millis();
   
-  // センサー初期化完了の表示
-  M5.Display.fillScreen(TFT_NAVY);
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setTextSize(1);
-  M5.Display.setCursor(25, 50);
-  M5.Display.println("Initialization");
-  M5.Display.setCursor(40, 65);
-  M5.Display.println("Complete");
-  delay(1000);
-}
-
-void loop() {
-  // Get current time
-  unsigned long currentTime = millis();
-  unsigned long deltaTime = currentTime - lastUpdateTime;
-  lastUpdateTime = currentTime;
-  
-  // Update button state - 最優先で処理
-  M5.update();
-  
-  // Handle button presses - ボタン処理を最優先
-  handleButtonPress();
-  
-  // Read sensor data and update fusion
-  readGPS();
-  readIMU();
-  
-  // M5Unifiedを使用しているため、独自のセンサーフュージョンは不要
-  // imuFusion.update(deltaTime);
-  
-  // Calculate celestial positions
-  if (gpsValid) {
-    calculateCelestialPositions();
-  }
-  
-  // LCD更新は一定間隔で実行（ちらつき軽減と応答性のバランス）
-  static unsigned long lastDisplayTime = 0;
-  if (currentTime - lastDisplayTime >= UPDATE_INTERVAL) {
-    lastDisplayTime = currentTime;
-    
-    // LCD更新
-    updateDisplay();
-    
-    // 遅延を短くして応答性を向上
-    delay(1);
-  }
+  // Show initialization complete
+  startupScreen.showInitComplete();
 }
 
 void setupHardware() {
@@ -272,36 +192,31 @@ void setupHardware() {
   M5.Display.setColorDepth(16);       // Set color depth to 16-bit
   M5.Display.setSwapBytes(true);      // Swap byte order
   
-  // Initialize SPIFFS
-  if (!initSPIFFS()) {
-    M5.Display.fillScreen(TFT_RED);
-    M5.Display.setTextColor(TFT_WHITE);
-    M5.Display.setCursor(5, 50);
-    M5.Display.println("SPIFFS Error!");
-    delay(2000);
-  } else {
-    // デバッグ用：ファイル一覧を表示
-    listSPIFFSFiles();
-  }
+  // 画面の初期化のみを行う（背景色は設定しない）
+  M5.Display.clear();
   
-  // Confirm LCD initialization
-  M5.Display.fillScreen(TFT_NAVY);    // Set background color to navy
-  M5.Display.setTextColor(TFT_WHITE); // Set text color to white
-  M5.Display.setTextSize(1);          // Set text size to 1
-  M5.Display.setCursor(10, 50);       // Set cursor position
+  // 下部18ピクセルに2行だけで表示
+  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.setTextSize(1.0);
+  M5.Display.setCursor(5, M5.Display.height() - 18);
+  M5.Display.println("Polaris Navigator");
+  M5.Display.setCursor(5, M5.Display.height() - 8);
   M5.Display.println("Initializing...");
-  delay(1000);                        // Display for 1 second
   
   Serial.println("Polaris Navigator initializing...");
 }
 
 void setupIMU() {
-  // デバッグ表示
-  M5.Display.fillScreen(TFT_NAVY);
+  // 画面の初期化のみを行う（背景色は設定しない）
+  M5.Display.clear();
+  
+  // 画面下部18ピクセルに2行だけで表示
+  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
   M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setTextSize(1);
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("IMU Setup...");
+  M5.Display.setTextSize(1.0);
+  M5.Display.setCursor(5, M5.Display.height() - 18);
+  M5.Display.println("IMU");
   
   // M5Unifiedライブラリを使用してIMUを初期化
   bool initResult = M5.Imu.init();
@@ -314,8 +229,14 @@ void setupIMU() {
   Serial.println(imuType);
   
   if(!imuType){
-    M5.Display.setTextColor(TFT_RED);
+    // 初期化失敗の場合
+    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE);
+    M5.Display.setCursor(5, M5.Display.height() - 18);
     M5.Display.println("IMU Init Failed!");
+    M5.Display.setCursor(5, M5.Display.height() - 8);
+    M5.Display.println("Retrying...");
+    
     Serial.println("IMU initialization failed! No IMU detected.");
     
     // 再試行
@@ -326,12 +247,19 @@ void setupIMU() {
     
     if(!imuType) {
       Serial.println("IMU retry failed. Check hardware connections.");
+      M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+      M5.Display.setTextColor(TFT_WHITE);
+      M5.Display.setCursor(5, M5.Display.height() - 18);
+      M5.Display.println("IMU Failed!");
+      M5.Display.setCursor(5, M5.Display.height() - 8);
       M5.Display.println("Check hardware!");
       delay(2000);
       return;
     } else {
       Serial.println("IMU retry successful!");
-      M5.Display.setTextColor(TFT_GREEN);
+      M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+      M5.Display.setTextColor(TFT_WHITE);
+      M5.Display.setCursor(5, M5.Display.height() - 18);
       M5.Display.println("IMU Retry OK!");
     }
   }
@@ -341,21 +269,6 @@ void setupIMU() {
   // M5.Imu.setGyroRange(BMI2_2000_DPS);  // ジャイロレンジ
   // M5.Imu.setMagOpMode(BMM150_NORMAL_MODE); // 磁力計動作モード
   // 注: 磁力計の動作モードはbmm150.initialize()内で設定されます
-  
-  M5.Display.setTextColor(TFT_GREEN);
-  M5.Display.println("IMU Initialized!");
-  Serial.println("IMU initialized successfully using M5Unified");
-  
-  // キャリブレーション状態の表示
-  M5.Display.setCursor(10, 40);
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.println("Calibration Status:");
-  
-  // キャリブレーションなしでも有効とする
-  M5.Display.setTextColor(TFT_YELLOW);
-  M5.Display.println("Default Calibration");
-  Serial.println("Using M5Unified with default calibration");
-  imuCalibrated = true;  // キャリブレーションなしでも有効とする
   
   // IMUデータのテスト読み取り
   float acc[3], gyro[3], mag[3];
@@ -372,31 +285,36 @@ void setupIMU() {
   Serial.print("Mag read: ");
   Serial.println(magOk ? "OK" : "Failed");
   
-  M5.Display.setCursor(10, 70);
+  // 初期化成功の表示
+  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
   M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.println("IMU Test Data:");
-  M5.Display.setCursor(10, 80);
-  M5.Display.printf("Acc: X%.2f Y%.2f Z%.2f", acc[0], acc[1], acc[2]);
-  M5.Display.setCursor(10, 90);
-  M5.Display.printf("Gyro: X%.1f Y%.1f Z%.1f", gyro[0], gyro[1], gyro[2]);
-  M5.Display.setCursor(10, 100);
-  M5.Display.printf("Mag: X%.1f Y%.1f Z%.1f", mag[0], mag[1], mag[2]);
+  M5.Display.setCursor(5, M5.Display.height() - 18);
+  M5.Display.println("IMU OK");
+  M5.Display.setCursor(5, M5.Display.height() - 8);
+  M5.Display.printf("A:%s G:%s M:%s", accOk?"OK":"NG", gyroOk?"OK":"NG", magOk?"OK":"NG");
   
-  delay(2000);
+  // キャリブレーションなしでも有効とする
+  Serial.println("Using M5Unified with default calibration");
+  imuCalibrated = true;  // キャリブレーションなしでも有効とする
+  
+  delay(1000);
   Serial.println("IMU setup complete");
 }
 
 void setupGPS() {
-  // デバッグ表示
-  M5.Display.fillScreen(TFT_NAVY);  // 濃い緑から紺色に変更
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setTextSize(1);
-  M5.Display.setCursor(10, 10);
-  M5.Display.println("GPS Setup...");
+  // 画面の初期化のみを行う（背景色は設定しない）
+  M5.Display.clear();
   
-  // Initialize GPS module
-  M5.Display.setCursor(10, 30);
-  M5.Display.println("Init GPS...");
+  // 画面下部18ピクセルに2行だけで表示
+  M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.setTextSize(1.0);
+  M5.Display.setCursor(5, M5.Display.height() - 18);
+  M5.Display.println("GPS");
+  M5.Display.setCursor(5, M5.Display.height() - 8);
+  M5.Display.printf("TX:%d RX:%d", GPS_TX_PIN, GPS_RX_PIN);
+  
+  // デバッグ情報をシリアルに出力
   Serial.println("Initializing GPS with default pins (TX:5, RX:-1)");
   Serial.print("GPS_TX_PIN: ");
   Serial.println(GPS_TX_PIN);
@@ -406,12 +324,20 @@ void setupGPS() {
   // AtomicBaseGPSクラスのデフォルトピン設定を使用
   bool gpsResult = gps.begin(GPS_BAUD);
   if (gpsResult) {
-    M5.Display.setTextColor(TFT_GREEN);
+    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE);
+    M5.Display.setCursor(5, M5.Display.height() - 18);
     M5.Display.println("GPS OK");
+    M5.Display.setCursor(5, M5.Display.height() - 8);
+    M5.Display.println("Waiting...");
     Serial.println("GPS initialized");
   } else {
-    M5.Display.setTextColor(TFT_RED);
-    M5.Display.println("GPS Failed!");
+    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE);
+    M5.Display.setCursor(5, M5.Display.height() - 18);
+    M5.Display.println("GPS Failed");
+    M5.Display.setCursor(5, M5.Display.height() - 8);
+    M5.Display.println("Retrying...");
     Serial.println("Failed to initialize GPS!");
     
     // 再試行
@@ -419,12 +345,20 @@ void setupGPS() {
     delay(500);
     gpsResult = gps.begin(GPS_BAUD);
     if (gpsResult) {
-      M5.Display.setTextColor(TFT_GREEN);
+      M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+      M5.Display.setTextColor(TFT_WHITE);
+      M5.Display.setCursor(5, M5.Display.height() - 18);
       M5.Display.println("GPS Retry OK");
+      M5.Display.setCursor(5, M5.Display.height() - 8);
+      M5.Display.println("Waiting...");
       Serial.println("GPS retry successful");
     } else {
-      M5.Display.setTextColor(TFT_RED);
-      M5.Display.println("GPS Retry Failed!");
+      M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+      M5.Display.setTextColor(TFT_WHITE);
+      M5.Display.setCursor(5, M5.Display.height() - 18);
+      M5.Display.println("GPS Failed");
+      M5.Display.setCursor(5, M5.Display.height() - 8);
+      M5.Display.println("Check HW");
       Serial.println("GPS retry failed. Check hardware connections.");
     }
   }
@@ -435,9 +369,6 @@ void setupGPS() {
   
   // Wait for initial GPS data
   Serial.println("Waiting for initial GPS data...");
-  M5.Display.setCursor(10, 50);
-  M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.println("Waiting for GPS data...");
   
   // Try to get initial GPS data with timeout
   unsigned long startTime = millis();
@@ -453,12 +384,20 @@ void setupGPS() {
   }
   
   if (initialDataReceived) {
-    M5.Display.setTextColor(TFT_GREEN);
-    M5.Display.println("GPS data received");
+    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE);
+    M5.Display.setCursor(5, M5.Display.height() - 18);
+    M5.Display.println("GPS Signal OK");
+    M5.Display.setCursor(5, M5.Display.height() - 8);
+    M5.Display.println("Continuing...");
     Serial.println("Initial GPS data received");
   } else {
-    M5.Display.setTextColor(TFT_YELLOW);
-    M5.Display.println("No GPS data yet");
+    M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE);
+    M5.Display.setCursor(5, M5.Display.height() - 18);
+    M5.Display.println("No GPS Signal");
+    M5.Display.setCursor(5, M5.Display.height() - 8);
+    M5.Display.println("Continuing...");
     Serial.println("No initial GPS data received within timeout");
   }
   
@@ -1010,13 +949,6 @@ void calibrateIMU() {
   unsigned long startTime = millis();
   unsigned long calibrationDuration = 15000; // 15秒間のキャリブレーション
   
-  // プログレスバーの初期設定
-  int barWidth = 140;
-  int barHeight = 10;
-  int barX = 10;
-  int barY = 120;
-  M5.Display.drawRect(barX, barY, barWidth, barHeight, TFT_WHITE);
-  
   while (!calibrationComplete) {
     // 磁力計キャリブレーション実行
     imuFusion.calibrateMagnetometer();
@@ -1024,10 +956,6 @@ void calibrateIMU() {
     // 経過時間からプログレスを計算
     unsigned long elapsedTime = millis() - startTime;
     float progress = min(1.0f, (float)elapsedTime / calibrationDuration);
-    
-    // プログレスバーを更新
-    int fillWidth = (int)(progress * barWidth);
-    M5.Display.fillRect(barX + 1, barY + 1, fillWidth - 2, barHeight - 2, TFT_GREEN);
     
     // キャリブレーション完了判定
     if (progress >= 1.0) {
@@ -1051,7 +979,7 @@ void calibrateIMU() {
   M5.Display.setCursor(0, 80);
   
   if (calibrationComplete) {
-    M5.Display.setTextColor(TFT_GREEN);
+    M5.Display.setTextColor(TFT_WHITE);
     M5.Display.println("Calibration Complete!");
     Serial.println("IMU calibration complete");
     
@@ -1063,11 +991,48 @@ void calibrateIMU() {
     // M5Unifiedライブラリに合わせて修正する必要があります
     // calibrationManager.saveCalibrationData();
   } else {
-    M5.Display.setTextColor(TFT_RED);
+    M5.Display.setTextColor(TFT_WHITE);
     M5.Display.println("Calibration Cancelled");
     Serial.println("IMU calibration cancelled");
   }
   
   // 少し待機してから終了
   delay(2000);
+}
+
+void loop() {
+  // Get current time
+  unsigned long currentTime = millis();
+  unsigned long deltaTime = currentTime - lastUpdateTime;
+  lastUpdateTime = currentTime;
+  
+  // Update button state - 最優先で処理
+  M5.update();
+  
+  // Handle button presses - ボタン処理を最優先
+  handleButtonPress();
+  
+  // Read sensor data and update fusion
+  readGPS();
+  readIMU();
+  
+  // M5Unifiedを使用しているため、独自のセンサーフュージョンは不要
+  // imuFusion.update(deltaTime);
+  
+  // Calculate celestial positions
+  if (gpsValid) {
+    calculateCelestialPositions();
+  }
+  
+  // LCD更新は一定間隔で実行（ちらつき軽減と応答性のバランス）
+  static unsigned long lastDisplayTime = 0;
+  if (currentTime - lastDisplayTime >= UPDATE_INTERVAL) {
+    lastDisplayTime = currentTime;
+    
+    // LCD更新
+    updateDisplay();
+    
+    // 遅延を短くして応答性を向上
+    delay(1);
+  }
 }
