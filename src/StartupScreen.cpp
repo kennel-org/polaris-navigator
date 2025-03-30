@@ -8,6 +8,7 @@
  */
 
 #include "StartupScreen.h"
+#include "icon.h" // ロゴ表示用のアイコンデータをインクルード
 
 // Color definitions
 #define COLOR_RED    0xFF0000
@@ -69,10 +70,55 @@ void StartupScreen::blinkLed(uint32_t color1, uint32_t color2, int count, int de
   setLedColor(color1);
 }
 
+// Draw logo on the startup screen
+void StartupScreen::drawLogo() {
+  // 画面サイズを取得
+  int screenWidth = M5.Display.width();
+  int screenHeight = M5.Display.height();
+  
+  // ロゴのサイズ（icon.hから取得）
+  int logoWidth = width;
+  int logoHeight = height;
+  
+  // ロゴの表示位置を計算（画面中央に配置）
+  int x = (screenWidth - logoWidth) / 2;
+  
+  // 画面下部18ピクセルを除く領域に表示するため、
+  // 上部に配置（ロゴの高さに応じて調整）
+  int availableHeight = screenHeight - 18; // 下部18ピクセルを除く
+  int y = (availableHeight - logoHeight) / 2;
+  
+  // 負の値にならないように調整
+  if (y < 0) y = 0;
+  
+  // アイコンデータの解析と描画
+  char *data = header_data;
+  uint8_t pixel[3]; // RGB値を格納する配列
+  
+  // メモリ使用量を抑えるため、1行ずつ描画
+  for (int row = 0; row < logoHeight; row++) {
+    for (int col = 0; col < logoWidth; col++) {
+      // ピクセルデータを取得
+      HEADER_PIXEL(data, pixel);
+      
+      // RGB565形式に変換
+      uint16_t color = ((pixel[0] & 0xF8) << 8) | ((pixel[1] & 0xFC) << 3) | (pixel[2] >> 3);
+      
+      // ピクセルを描画（透過処理：黒色は描画しない）
+      if (!(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0)) {
+        M5.Display.drawPixel(x + col, y + row, color);
+      }
+    }
+  }
+}
+
 // Show splash screen
 void StartupScreen::showSplashScreen() {
-  // 画面の初期化のみを行う（背景色は設定しない）
+  // 画面の初期化
   M5.Display.clear();
+  
+  // ロゴを表示
+  drawLogo();
   
   // 描画エリアを消去
   M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
@@ -99,7 +145,7 @@ void StartupScreen::showInitProgress(const char* message, int progressPercent) {
   if (progressPercent < 0) progressPercent = 0;
   if (progressPercent > 100) progressPercent = 100;
   
-  // 描画エリアを消去
+  // 描画エリアを消去（下部18ピクセルのみ）
   M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
   
   // 1行目: 進捗メッセージとパーセント
@@ -113,21 +159,26 @@ void StartupScreen::showInitProgress(const char* message, int progressPercent) {
 
 // Show initialization complete
 void StartupScreen::showInitComplete() {
-  // 描画エリアを消去
+  // 描画エリアを消去（下部18ピクセルのみ）
   M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
   
-  // 1行目: 完了メッセージ
+  // 輝度を明示的に再設定して一貫性を保つ
+  M5.Display.setBrightness(40);  // 40%に設定（setupHardwareと同じ値）
+  
+  // 完了メッセージを中央に表示
   M5.Display.setTextColor(TFT_WHITE);
   M5.Display.setTextSize(1.0);
-  M5.Display.setCursor(5, M5.Display.height() - 18);
+  
+  // テキストを中央揃えにするための計算
+  int textWidth = 12 * 12; // "Init Complete"の幅を概算（文字数×ピクセル幅）
+  int xPos = (M5.Display.width() - textWidth) / 2;
+  if (xPos < 0) xPos = 5; // 負の値にならないように調整
+  
+  M5.Display.setCursor(xPos, M5.Display.height() - 12);
   M5.Display.println("Init Complete");
   
-  // 2行目: 指示メッセージ
-  M5.Display.setCursor(15, M5.Display.height() - 8);
-  M5.Display.println("Press button");
-  
-  // Set LED to green to indicate success
-  setLedColor(COLOR_GREEN);
+  // Set LED to green to indicate success (輝度を抑えた緑色に設定)
+  setLedColor(0x007F00);  // 暗めの緑色を使用
   
   // Short delay to show completion
   delay(1000);
@@ -135,7 +186,7 @@ void StartupScreen::showInitComplete() {
 
 // Show initialization error
 void StartupScreen::showInitError(const char* errorMessage) {
-  // 描画エリアを消去
+  // 描画エリアを消去（下部18ピクセルのみ）
   M5.Display.fillRect(0, M5.Display.height() - 18, M5.Display.width(), 18, TFT_BLACK);
   
   // 1行目: エラーメッセージ

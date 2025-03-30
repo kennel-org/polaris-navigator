@@ -36,6 +36,9 @@ public:
   // Set LED color
   void setLedColor(uint32_t color);
   
+  // Draw logo on the startup screen (画面下部18ピクセルを除く領域に表示)
+  void drawLogo();
+  
 private:
   // Current LED color
   uint32_t _currentLedColor;
