@@ -6,6 +6,20 @@
  * 
  * Created: 2025-03-23
  * GitHub: https://github.com/kennel-org/polaris-navigator
+ * 
+ * AtomS3R IMU座標系の定義:
+ * - X軸: デバイスの右方向（USBコネクタが下向きの場合）
+ * - Y軸: デバイスの上方向（USBコネクタが下向きの場合）
+ * - Z軸: デバイスの画面から外向き（画面に垂直）
+ * 
+ * 極軸合わせ時の標準的な持ち方:
+ * - デバイスの上面（-X方向）を天の北極/南極に向ける
+ * - ディスプレイ面を上向きにして読みやすくする
+ * 
+ * 角度の定義:
+ * - ピッチ: X-Z平面での傾き（+/-90度）、0度が水平
+ * - ロール: Y-Z平面での傾き（+/-180度）、0度が水平
+ * - 方位角: 北を0度とした水平面内での角度（0-360度）
  */
 
 // Include necessary libraries
@@ -487,11 +501,46 @@ void readIMU() {
     lastSensorReport = millis();
   }
   
+  // AtomS3R IMU座標系に合わせて軸を調整
+  // 注: AtomS3Rの物理的な向きに合わせて、軸の対応関係を調整
+  //     X軸: デバイスの右方向
+  //     Y軸: デバイスの上方向
+  //     Z軸: デバイスの画面から外向き
+  
+  // 極軸合わせ用の座標系に変換
+  // 極軸合わせでは、デバイスの上面（-X方向）を天の北極/南極に向ける
+  float acc_adj[3], mag_adj[3];
+  
+  // 加速度データの軸調整（軸の入れ替えと符号の反転）
+  // 問題: デバイスをロール方向に傾けるとピッチが変化する
+  // 解決: 軸の対応関係を修正
+  acc_adj[0] = acc[1];  // X軸をY軸に変更（デバイスの上方向を右方向と再定義）
+  acc_adj[1] = -acc[0]; // Y軸を-X軸に変更（デバイスの右方向を下方向と再定義）
+  acc_adj[2] = acc[2];  // Z軸はそのまま（画面垂直方向）
+  
+  // 地磁気データの軸調整（加速度と同様の調整）
+  mag_adj[0] = mag[1];  // X軸をY軸に変更
+  mag_adj[1] = -mag[0]; // Y軸を-X軸に変更
+  mag_adj[2] = mag[2];  // Z軸はそのまま
+  
   // ピッチとロールの計算
   // 重力ベクトルからピッチとロールを計算
   if (accOk) {
-    pitch = atan2(acc[0], sqrt(acc[1] * acc[1] + acc[2] * acc[2])) * 180.0 / PI;
-    roll = atan2(acc[1], acc[2]) * 180.0 / PI;
+    // ピッチ: X-Z平面での傾き（+/-90度）
+    // 修正: 調整後のX軸を基準にした傾き角度
+    pitch = atan2(acc_adj[0], sqrt(acc_adj[1] * acc_adj[1] + acc_adj[2] * acc_adj[2])) * 180.0 / PI;
+    
+    // ロール: Y-Z平面での傾き（+/-180度）
+    // 修正: 調整後のY軸とZ軸の関係から計算
+    roll = atan2(acc_adj[1], acc_adj[2]) * 180.0 / PI;
+    
+    // デバッグ: 生のセンサー値と計算された角度の関係を確認
+    Serial.print("Raw Accel vs Angles: ");
+    Serial.print("X="); Serial.print(acc[0]);
+    Serial.print(", Y="); Serial.print(acc[1]);
+    Serial.print(", Z="); Serial.print(acc[2]);
+    Serial.print(" -> Pitch="); Serial.print(pitch);
+    Serial.print(", Roll="); Serial.println(roll);
   }
   
   // 方位角の計算（ティルト補正あり）
@@ -501,8 +550,11 @@ void readIMU() {
     float roll_rad = roll * PI / 180.0;
     
     // 地磁気データをティルト補正
-    float mag_x = mag[0] * cos(pitch_rad) + mag[2] * sin(pitch_rad);
-    float mag_y = mag[0] * sin(roll_rad) * sin(pitch_rad) + mag[1] * cos(roll_rad) - mag[2] * sin(roll_rad) * cos(pitch_rad);
+    // 水平面に投影するための補正計算
+    float mag_x = mag_adj[0] * cos(pitch_rad) + mag_adj[2] * sin(pitch_rad);
+    float mag_y = mag_adj[0] * sin(roll_rad) * sin(pitch_rad) + 
+                 mag_adj[1] * cos(roll_rad) - 
+                 mag_adj[2] * sin(roll_rad) * cos(pitch_rad);
     
     // 補正後の地磁気データから方位角を計算
     heading = atan2(mag_y, mag_x) * 180.0 / PI;
@@ -547,6 +599,13 @@ void readIMU() {
     Serial.print(acc[1]);
     Serial.print(", Z=");
     Serial.println(acc[2]);
+    
+    Serial.print("Accel Adjusted: X=");
+    Serial.print(acc_adj[0]);
+    Serial.print(", Y=");
+    Serial.print(acc_adj[1]);
+    Serial.print(", Z=");
+    Serial.println(acc_adj[2]);
   }
   
   if (gyroOk) {
@@ -565,6 +624,13 @@ void readIMU() {
     Serial.print(mag[1]);
     Serial.print(", Z=");
     Serial.println(mag[2]);
+    
+    Serial.print("Mag Adjusted: X=");
+    Serial.print(mag_adj[0]);
+    Serial.print(", Y=");
+    Serial.print(mag_adj[1]);
+    Serial.print(", Z=");
+    Serial.println(mag_adj[2]);
   }
 }
 
