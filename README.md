@@ -1,6 +1,8 @@
 # Polaris Navigator
 
-<img src="images/logo.png" alt="Polaris Navigator Logo" width="50%">
+<div style="overflow: hidden; height: auto;">
+  <img src="images/logo.png" alt="Polaris Navigator Logo" style="margin: -72px 0; width: 50%;">
+</div>
 
 A polar alignment assistant device for astrophotography using AtomS3R (with IMU) and AtomicBase GPS.
 

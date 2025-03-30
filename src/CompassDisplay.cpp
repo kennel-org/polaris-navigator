@@ -32,8 +32,7 @@ void CompassDisplay::begin() {
   // Initialize canvas for double buffering
   _canvas.createSprite(M5.Display.width(), M5.Display.height());
   
-  // Show welcome animation
-  showWelcome();
+  // Note: Welcome screen is now handled by StartupScreen class
 }
 
 // Set pixel color (for RGB LED)
