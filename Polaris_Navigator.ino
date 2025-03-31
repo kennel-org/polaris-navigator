@@ -122,6 +122,10 @@ float magDeclination = 0.0;  // Magnetic declination
 DisplayMode currentMode = POLAR_ALIGNMENT;
 RawDataMode currentRawMode = RAW_IMU;
 
+// グローバル変数に前のモード情報を保存
+DisplayMode previousMode = POLAR_ALIGNMENT;
+RawDataMode previousRawMode = RAW_IMU;
+
 // Function prototypes
 void setupHardware();
 void setupIMU();
@@ -157,6 +161,9 @@ float getTemperature() {
 // Timing variables
 unsigned long lastUpdateTime = 0;
 unsigned long lastDisplayTime = 0;
+
+// グローバル変数を追加
+bool longPressHandled = false; // 長押し処理が実行済みかどうかのフラグ
 
 void setup() {
   // Initialize hardware
@@ -749,17 +756,34 @@ void updateDisplay() {
 void handleButtonPress() {
   // Handle button press
   if (M5.BtnA.wasPressed()) {
+    // ボタン押下をデバッグ出力
+    Serial.println("Button was pressed (short press)");
+    
     // Short press - cycle through display modes or sub-modes
     if (currentMode == RAW_DATA) {
       // RAW_DATAモード内ではサブモードを切り替え
+      Serial.println("Cycling RAW data mode");
       cycleRawDataMode();
     } else {
       // 他のモードでは通常のモード切り替え
+      Serial.println("Cycling display mode");
       cycleDisplayMode();
     }
   } else if (M5.BtnA.pressedFor(1000)) {
     // Long press - perform mode-specific action
-    handleLongPress();
+    if (!longPressHandled) {
+      Serial.println("Long press detected and handling it now");
+      handleLongPress();
+      longPressHandled = true;
+    } else {
+      Serial.println("Long press already handled, ignoring");
+    }
+  } else {
+    // ボタンが押されていない場合はフラグをリセット
+    if (longPressHandled && !M5.BtnA.isPressed()) {
+      Serial.println("Resetting longPressHandled flag");
+      longPressHandled = false;
+    }
   }
 }
 
@@ -793,6 +817,14 @@ void cycleDisplayMode() {
 }
 
 void handleLongPress() {
+  // デバッグ出力
+  Serial.print("Long press detected in mode: ");
+  Serial.println(currentMode);
+  if (currentMode == RAW_DATA) {
+    Serial.print("Current RAW mode: ");
+    Serial.println(currentRawMode);
+  }
+  
   // Handle long press based on current mode
   switch (currentMode) {
     case POLAR_ALIGNMENT: 
@@ -806,11 +838,18 @@ void handleLongPress() {
       break;
       
     case IMU_DATA: 
+      // 現在のモードを保存
+      previousMode = currentMode;
+      previousRawMode = currentRawMode;
+      Serial.println("Saving previous mode: IMU_DATA");
+      
       // Start IMU calibration
       currentMode = CALIBRATION_MODE;
+      Serial.println("Entering CALIBRATION_MODE");
+      updateDisplay(); // モード変更を画面に反映
+      
+      // キャリブレーション実行
       calibrateIMU();
-      // Return to IMU data mode after calibration
-      currentMode = IMU_DATA;
       break;
       
     case CELESTIAL_DATA: 
@@ -819,9 +858,19 @@ void handleLongPress() {
       break;
       
     case RAW_DATA: 
-      // RAW_DATAモードでの長押しはメインモードを切り替え
+      // RAW_DATAモードでの長押しはキャリブレーションを開始
+      // 前のRAWモードを記憶
+      previousMode = currentMode;
+      previousRawMode = currentRawMode;
+      Serial.println("Saving previous mode: RAW_DATA, submode: " + String(currentRawMode));
+      
+      // キャリブレーションモードに設定
       currentMode = CALIBRATION_MODE;
-      updateDisplay();
+      Serial.println("Entering CALIBRATION_MODE");
+      updateDisplay(); // モード変更を画面に反映
+      
+      // キャリブレーション実行
+      calibrateIMU();
       break;
       
     case CALIBRATION_MODE: 
@@ -885,13 +934,22 @@ void cycleRawDataMode() {
 }
 
 void calibrateIMU() {
-  // M5Unifiedライブラリを使用してIMUキャリブレーションを実行
-  Serial.println("Starting IMU calibration with M5Unified...");
+  // デバッグ出力
+  Serial.println("Starting calibrateIMU function");
+  Serial.print("Current mode: ");
+  Serial.println(currentMode);
+  Serial.print("Previous mode: ");
+  Serial.println(previousMode);
+  Serial.print("Previous RAW mode: ");
+  Serial.println(previousRawMode);
+  
+  // キャリブレーション開始
+  Serial.println("Starting IMU calibration...");
   
   // ディスプレイにキャリブレーションモードを表示
   M5.Display.fillScreen(TFT_BLACK);
   M5.Display.setTextColor(TFT_WHITE);
-  M5.Display.setTextSize(1.5);
+  M5.Display.setTextSize(1);
   M5.Display.setCursor(0, 0);
   M5.Display.println("IMU Calibration");
   M5.Display.println("Rotate device in all");
@@ -900,71 +958,140 @@ void calibrateIMU() {
   M5.Display.println("");
   M5.Display.println("Press button to cancel");
   
-  // キャリブレーション開始
-  Serial.println("Starting accelerometer/gyro calibration...");
-  M5.Display.setCursor(0, 80);
-  M5.Display.println("Step 1: Accel/Gyro");
-  M5.Display.println("Place device on flat");
-  M5.Display.println("surface and keep still");
-  
-  // 加速度/ジャイロキャリブレーション
-  // M5.Imu.calibrateAccelGyro(); // 現在このメソッドは利用できません
-  delay(1000);
-  
   // 磁力計キャリブレーション
-  Serial.println("Starting magnetometer calibration...");
-  M5.Display.fillRect(0, 80, 160, 60, TFT_BLACK);
   M5.Display.setCursor(0, 80);
-  M5.Display.println("Step 2: Magnetometer");
   M5.Display.println("Draw figure 8 pattern");
   M5.Display.println("with device");
   
-  // キャリブレーションループ
+  // キャリブレーション変数
   bool calibrationComplete = false;
+  bool calibrationCancelled = false;
   unsigned long startTime = millis();
   unsigned long calibrationDuration = 15000; // 15秒間のキャリブレーション
   
-  while (!calibrationComplete) {
-    // 磁力計キャリブレーション実行
-    imuFusion.calibrateMagnetometer();
-    
-    // 経過時間からプログレスを計算
+  // キャリブレーション用データ
+  int16_t min_x = 32767, max_x = -32768;
+  int16_t min_y = 32767, max_y = -32768;
+  int16_t min_z = 32767, max_z = -32768;
+  int sampleCount = 0;
+  
+  // ボタン状態をリセット - 重要: 前の状態をクリアする
+  delay(500); // ボタン状態が安定するまで少し待機
+  M5.update();
+  
+  // キャリブレーションループ
+  while (!calibrationComplete && !calibrationCancelled) {
+    // 現在の経過時間を計算
     unsigned long elapsedTime = millis() - startTime;
     float progress = min(1.0f, (float)elapsedTime / calibrationDuration);
     
-    // キャリブレーション完了判定
+    // 時間経過でキャリブレーション完了
     if (progress >= 1.0) {
       calibrationComplete = true;
+      Serial.println("Calibration completed by timeout");
+      continue; // ループを抜ける
     }
     
     // ボタン入力をチェック（キャンセル用）
     M5.update();
+    
+    // ボタンの状態をデバッグ出力
+    static bool lastBtnState = false;
+    bool currentBtnState = M5.BtnA.isPressed();
+    
+    if (currentBtnState != lastBtnState) {
+      Serial.print("In calibration loop, button state changed to: ");
+      Serial.println(currentBtnState ? "PRESSED" : "RELEASED");
+      lastBtnState = currentBtnState;
+    }
+    
     if (M5.BtnA.wasPressed()) {
       // キャリブレーションをキャンセル
-      Serial.println("Calibration cancelled by user");
-      break;
+      Serial.println("Calibration cancelled by button press");
+      calibrationCancelled = true;
+      continue; // ループを抜ける
     }
+    
+    // 磁気センサーデータを読み取り
+    bmm150.readMagnetometer();
+    
+    // キャリブレーションデータを更新
+    if (bmm150.raw_mag_x < min_x) min_x = bmm150.raw_mag_x;
+    if (bmm150.raw_mag_x > max_x) max_x = bmm150.raw_mag_x;
+    
+    if (bmm150.raw_mag_y < min_y) min_y = bmm150.raw_mag_y;
+    if (bmm150.raw_mag_y > max_y) max_y = bmm150.raw_mag_y;
+    
+    if (bmm150.raw_mag_z < min_z) min_z = bmm150.raw_mag_z;
+    if (bmm150.raw_mag_z > max_z) max_z = bmm150.raw_mag_z;
+    
+    sampleCount++;
+    
+    // 進捗バーを表示
+    int barWidth = 120;
+    int barHeight = 10;
+    int barX = 20;
+    int barY = 120;
+    
+    M5.Display.fillRect(barX, barY, barWidth, barHeight, TFT_DARKGREY);
+    M5.Display.fillRect(barX, barY, (int)(barWidth * progress), barHeight, TFT_GREEN);
+    
+    // 進捗テキスト表示
+    M5.Display.fillRect(0, 140, 160, 10, TFT_BLACK);
+    M5.Display.setCursor(20, 140);
+    M5.Display.print((int)(progress * 100));
+    M5.Display.print("% ");
+    M5.Display.print(sampleCount);
+    M5.Display.print(" samples");
     
     // 少し待機
     delay(50);
   }
   
-  // キャリブレーション完了表示
-  M5.Display.fillRect(0, 80, 160, 60, TFT_BLACK);
+  // キャリブレーション結果表示
+  M5.Display.fillRect(0, 80, 160, 80, TFT_BLACK);
   M5.Display.setCursor(0, 80);
   
   if (calibrationComplete) {
+    // キャリブレーション完了処理
     M5.Display.setTextColor(TFT_WHITE);
     M5.Display.println("Calibration Complete!");
     Serial.println("IMU calibration complete");
     
-    // キャリブレーションステータスを更新
+    // キャリブレーションデータを計算して適用
+    float hard_iron_x = (min_x + max_x) / 2.0f;
+    float hard_iron_y = (min_y + max_y) / 2.0f;
+    float hard_iron_z = (min_z + max_z) / 2.0f;
+    
+    // スケーリング係数を計算
+    float range_x = (max_x - min_x) / 2.0f;
+    float range_y = (max_y - min_y) / 2.0f;
+    float range_z = (max_z - min_z) / 2.0f;
+    
+    // ゼロ除算を防止
+    if (range_x < 1.0f) range_x = 1.0f;
+    if (range_y < 1.0f) range_y = 1.0f;
+    if (range_z < 1.0f) range_z = 1.0f;
+    
+    // 平均範囲を計算
+    float avg_range = (range_x + range_y + range_z) / 3.0f;
+    
+    // スケーリング係数
+    float scale_x = avg_range / range_x;
+    float scale_y = avg_range / range_y;
+    float scale_z = avg_range / range_z;
+    
+    // BMM150クラスにキャリブレーションデータを設定
+    bmm150.setCalibrationData(hard_iron_x, hard_iron_y, hard_iron_z, 
+                             scale_x, scale_y, scale_z);
+    
+    // キャリブレーション完了フラグを設定
+    bmm150.setCalibrationStatus(true);
     imuCalibrated = true;
     
-    // キャリブレーションマネージャーとの連携
-    // 注意: 現在のCalibrationManagerはBMI270とBMM150クラスに依存していて、
-    // M5Unifiedライブラリに合わせて修正する必要があります
-    // calibrationManager.saveCalibrationData();
+    // デバッグ出力
+    Serial.print("Samples collected: ");
+    Serial.println(sampleCount);
   } else {
     M5.Display.setTextColor(TFT_WHITE);
     M5.Display.println("Calibration Cancelled");
@@ -973,6 +1100,32 @@ void calibrateIMU() {
   
   // 少し待機してから終了
   delay(2000);
+  
+  // 明示的に前のモードに戻す
+  Serial.println("Returning to previous mode");
+  Serial.print("Previous mode: ");
+  Serial.println(previousMode);
+  Serial.print("Previous RAW mode: ");
+  Serial.println(previousRawMode);
+  
+  // モードを元に戻す
+  currentMode = previousMode;
+  currentRawMode = previousRawMode;
+  
+  // 長押し処理フラグをリセット
+  longPressHandled = false;
+  
+  // ボタン状態をリセット
+  M5.update();
+  
+  // 画面を更新して前のモードの表示に戻す
+  Serial.println("Updating display to show previous mode");
+  updateDisplay();
+  
+  // 追加の安全策として、ボタン状態が完全にリセットされるまで待機
+  delay(500);
+  M5.update();
+  Serial.println("Calibration function completed");
 }
 
 void loop() {
@@ -983,6 +1136,40 @@ void loop() {
   
   // Update button state - 最優先で処理
   M5.update();
+  
+  // ボタン状態をデバッグ出力
+  static bool prevBtnPressed = false;
+  static bool prevBtnLongPressed = false;
+  
+  bool btnPressed = M5.BtnA.isPressed();
+  bool btnLongPressed = M5.BtnA.pressedFor(1000);
+  
+  // ボタン状態が変化した場合のみ出力
+  if (btnPressed != prevBtnPressed) {
+    Serial.print("Button state changed: ");
+    Serial.println(btnPressed ? "PRESSED" : "RELEASED");
+    prevBtnPressed = btnPressed;
+  }
+  
+  if (btnLongPressed != prevBtnLongPressed) {
+    Serial.print("Long press state: ");
+    Serial.println(btnLongPressed ? "DETECTED" : "RELEASED");
+    prevBtnLongPressed = btnLongPressed;
+  }
+  
+  // モード情報を定期的に出力
+  static unsigned long lastDebugTime = 0;
+  if (currentTime - lastDebugTime >= 1000) { // 1秒ごとに出力
+    lastDebugTime = currentTime;
+    Serial.print("Current mode: ");
+    Serial.print(currentMode);
+    if (currentMode == RAW_DATA) {
+      Serial.print(", Raw submode: ");
+      Serial.print(currentRawMode);
+    }
+    Serial.print(", longPressHandled: ");
+    Serial.println(longPressHandled);
+  }
   
   // Handle button presses - ボタン処理を最優先
   handleButtonPress();
