@@ -206,9 +206,11 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   M5.Display.drawCircle(centerX, centerY, radius, TFT_WHITE);
   
   // Draw cardinal directions
-  float angle = (360 - heading) * PI / 180.0; 
+  // 方位角の計算を修正 - 北が上になるように調整
+  // 方位角は時計回りで、北が0度、東が90度、南が180度、西が270度
+  float angle = heading * PI / 180.0; 
   
-  // North
+  // North - 北を指す針（赤色）
   int nx = centerX + radius * sin(angle);
   int ny = centerY - radius * cos(angle);
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
@@ -328,15 +330,18 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.drawCircle(centerX, centerY, radius, TFT_WHITE);
   
   // Draw cardinal directions
-  float angle = (360 - heading) * PI / 180.0; 
+  // 方位角の計算を修正 - 北が上になるように調整
+  // 方位角は時計回りで、北が0度、東が90度、南が180度、西が270度
+  float angle = heading * PI / 180.0; 
   
-  // North
+  // North - 北を指す針（赤色）
   int nx = centerX + radius * sin(angle);
   int ny = centerY - radius * cos(angle);
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
   
   // Calculate Polaris position relative to heading
-  float polarisAngle = (360 - polarisAz) * PI / 180.0;
+  // 北極星の方位角計算も同様に修正
+  float polarisAngle = polarisAz * PI / 180.0;
   int px = centerX + (radius * 0.8) * sin(polarisAngle);
   int py = centerY - (radius * 0.8) * cos(polarisAngle);
   
