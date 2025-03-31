@@ -9,6 +9,7 @@
 
 #include "IMUFusion.h"
 #include <math.h>
+#include <M5Unified.h>  // M5.update()を使用するために必要
 
 // Constants
 #define RAD_TO_DEG 57.2957795131  // 180/PI
@@ -34,6 +35,10 @@ IMUFusion::IMUFusion(BMI270 *bmi270, BMM150class *bmm150) {
   _magDeclination = 0.0f;
   
   _isCalibrated = false;
+  
+  // Initialize complementary filter values
+  _alpha = 0.98f;  // 98% gyro, 2% accel/mag for complementary filter
+  _lastUpdate = 0;
 }
 
 void IMUFusion::begin() {
@@ -58,8 +63,8 @@ void IMUFusion::begin() {
   _pitch = asin(-accX) * RAD_TO_DEG;
   _roll = atan2(accY, accZ) * RAD_TO_DEG;
   
-  // Initial yaw from magnetometer
-  _yaw = _bmm150->calculateHeading();
+  // Initial yaw from magnetometer with tilt compensation
+  _yaw = _bmm150->calculateTiltCompensatedHeading(_pitch, _roll);
   
   // Convert Euler angles to quaternion
   float cosYaw = cos(_yaw * DEG_TO_RAD * 0.5f);
@@ -75,9 +80,23 @@ void IMUFusion::begin() {
   _q3 = cosRoll * cosPitch * sinYaw - sinRoll * sinPitch * cosYaw;
   
   normalizeQuaternion();
+  
+  _lastUpdate = millis();
 }
 
 void IMUFusion::update(float deltaTime) {
+  // If deltaTime is not provided, calculate it
+  if (deltaTime <= 0) {
+    unsigned long now = millis();
+    deltaTime = (now - _lastUpdate) / 1000.0f;
+    _lastUpdate = now;
+    
+    // Sanity check for deltaTime
+    if (deltaTime <= 0 || deltaTime > 1.0f) {
+      deltaTime = 0.01f;  // Default to 10ms if time is unreasonable
+    }
+  }
+  
   // Read latest sensor data
   _bmi270->readAcceleration();
   _bmi270->readGyro();
@@ -114,67 +133,48 @@ void IMUFusion::update(float deltaTime) {
     mz /= normMag;
   }
   
-  // Reference direction of Earth's magnetic field (tilt-compensated)
-  float hx, hy, hz;
+  // Calculate pitch and roll from accelerometer (for complementary filter)
+  float accelPitch = asin(-ax) * RAD_TO_DEG;
+  float accelRoll = atan2(ay, az) * RAD_TO_DEG;
   
-  // Auxiliary variables to avoid repeated calculations
-  float q0q0 = _q0 * _q0;
-  float q0q1 = _q0 * _q1;
-  float q0q2 = _q0 * _q2;
-  float q0q3 = _q0 * _q3;
-  float q1q1 = _q1 * _q1;
-  float q1q2 = _q1 * _q2;
-  float q1q3 = _q1 * _q3;
-  float q2q2 = _q2 * _q2;
-  float q2q3 = _q2 * _q3;
-  float q3q3 = _q3 * _q3;
+  // Update quaternion using gyroscope data
+  float halfT = deltaTime * 0.5f;
+  float q0_dot = 0.5f * (-_q1 * gx - _q2 * gy - _q3 * gz);
+  float q1_dot = 0.5f * (_q0 * gx + _q2 * gz - _q3 * gy);
+  float q2_dot = 0.5f * (_q0 * gy - _q1 * gz + _q3 * gx);
+  float q3_dot = 0.5f * (_q0 * gz + _q1 * gy - _q2 * gx);
   
-  // Reference direction of Earth's magnetic field
-  hx = 2.0f * (mx * (0.5f - q2q2 - q3q3) + my * (q1q2 - q0q3) + mz * (q1q3 + q0q2));
-  hy = 2.0f * (mx * (q1q2 + q0q3) + my * (0.5f - q1q1 - q3q3) + mz * (q2q3 - q0q1));
-  hz = 2.0f * (mx * (q1q3 - q0q2) + my * (q2q3 + q0q1) + mz * (0.5f - q1q1 - q2q2));
+  _q0 += q0_dot * deltaTime;
+  _q1 += q1_dot * deltaTime;
+  _q2 += q2_dot * deltaTime;
+  _q3 += q3_dot * deltaTime;
   
-  // Estimated direction of gravity and magnetic field
-  float gravityX = 2.0f * (q1q3 - q0q2);
-  float gravityY = 2.0f * (q0q1 + q2q3);
-  float gravityZ = q0q0 - q1q1 - q2q2 + q3q3;
-  
-  // Error is cross product between estimated and measured direction of gravity
-  float ex = (ay * gravityZ - az * gravityY);
-  float ey = (az * gravityX - ax * gravityZ);
-  float ez = (ax * gravityY - ay * gravityX);
-  
-  // Add magnetometer error if calibrated
-  if (_isCalibrated) {
-    float magX = 2.0f * (hx * (0.5f - q2q2 - q3q3) + hy * (q1q2 - q0q3) + hz * (q1q3 + q0q2));
-    float magY = 2.0f * (hx * (q1q2 + q0q3) + hy * (0.5f - q1q1 - q3q3) + hz * (q2q3 - q0q1));
-    float magZ = 2.0f * (hx * (q1q3 - q0q2) + hy * (q2q3 + q0q1) + hz * (0.5f - q1q1 - q2q2));
-    
-    ex += (my * magZ - mz * magY);
-    ey += (mz * magX - mx * magZ);
-    ez += (mx * magY - my * magX);
-  }
-  
-  // Apply feedback terms
-  gx += _filterGain * ex;
-  gy += _filterGain * ey;
-  gz += _filterGain * ez;
-  
-  // Integrate rate of change of quaternion
-  float pa = _q1;
-  float pb = _q2;
-  float pc = _q3;
-  
-  _q0 += (-_q1 * gx - _q2 * gy - _q3 * gz) * (0.5f * deltaTime);
-  _q1 += (_q0 * gx + pb * gz - pc * gy) * (0.5f * deltaTime);
-  _q2 += (_q0 * gy - pa * gz + pc * gx) * (0.5f * deltaTime);
-  _q3 += (_q0 * gz + pa * gy - pb * gx) * (0.5f * deltaTime);
-  
-  // Normalize quaternion
   normalizeQuaternion();
   
-  // Update Euler angles
+  // Convert quaternion to Euler angles
   updateEulerAngles();
+  
+  // Apply complementary filter for pitch and roll
+  _pitch = _alpha * _pitch + (1.0f - _alpha) * accelPitch;
+  _roll = _alpha * _roll + (1.0f - _alpha) * accelRoll;
+  
+  // Get tilt-compensated heading from magnetometer
+  float magHeading = _bmm150->calculateTiltCompensatedHeading(_pitch, _roll);
+  
+  // Apply complementary filter for yaw
+  // Calculate the difference between current yaw and mag heading
+  float yawDiff = magHeading - _yaw;
+  
+  // Normalize the difference to -180 to +180
+  if (yawDiff > 180.0f) yawDiff -= 360.0f;
+  if (yawDiff < -180.0f) yawDiff += 360.0f;
+  
+  // Apply the filter with a lower weight for magnetometer
+  _yaw += yawDiff * (1.0f - _alpha) * 0.5f;
+  
+  // Ensure yaw is in 0-360 range
+  while (_yaw < 0.0f) _yaw += 360.0f;
+  while (_yaw >= 360.0f) _yaw -= 360.0f;
 }
 
 float IMUFusion::getYaw() {
@@ -204,9 +204,32 @@ void IMUFusion::getQuaternion(float *q0, float *q1, float *q2, float *q3) {
 }
 
 void IMUFusion::calibrateMagnetometer() {
-  // Use BMM150's calibration function
-  _bmm150->calibrate();
+  // 新しいステップベースのキャリブレーション方式を使用
+  Serial.println("IMUFusion::calibrateMagnetometer() - Using step-based calibration");
+  
+  // 初期化ステップを実行
+  _bmm150->calibrateStep(true);
+  
+  // キャリブレーションが完了するまでループ
+  bool isComplete = false;
+  while (!isComplete) {
+    // ボタン入力をチェック（キャンセル用）
+    M5.update();
+    if (M5.BtnA.wasPressed()) {
+      // キャリブレーションをキャンセル
+      Serial.println("IMUFusion::calibrateMagnetometer() - Calibration cancelled by user");
+      return;
+    }
+    
+    // 1ステップ実行
+    isComplete = _bmm150->calibrateStep(false);
+    
+    // 少し待機
+    delay(50);
+  }
+  
   _isCalibrated = true;
+  Serial.println("IMUFusion::calibrateMagnetometer() - Calibration completed successfully");
 }
 
 bool IMUFusion::isCalibrated() {
@@ -214,11 +237,13 @@ bool IMUFusion::isCalibrated() {
 }
 
 void IMUFusion::setFilterGain(float gain) {
-  // Limit gain to 0.0-1.0 range
-  if (gain < 0.0f) gain = 0.0f;
-  if (gain > 1.0f) gain = 1.0f;
-  
-  _filterGain = gain;
+  if (gain >= 0.0f && gain <= 1.0f) {
+    _filterGain = gain;
+    // Also update complementary filter alpha
+    _alpha = 1.0f - gain;
+    if (_alpha > 0.99f) _alpha = 0.99f;
+    if (_alpha < 0.5f) _alpha = 0.5f;
+  }
 }
 
 void IMUFusion::setMagneticDeclination(float declination) {
@@ -227,13 +252,16 @@ void IMUFusion::setMagneticDeclination(float declination) {
 
 void IMUFusion::updateEulerAngles() {
   // Convert quaternion to Euler angles
-  _yaw = atan2(2.0f * (_q1 * _q2 + _q0 * _q3), _q0 * _q0 + _q1 * _q1 - _q2 * _q2 - _q3 * _q3) * RAD_TO_DEG;
-  _pitch = -asin(2.0f * (_q1 * _q3 - _q0 * _q2)) * RAD_TO_DEG;
-  _roll = atan2(2.0f * (_q0 * _q1 + _q2 * _q3), _q0 * _q0 - _q1 * _q1 - _q2 * _q2 + _q3 * _q3) * RAD_TO_DEG;
+  _roll = atan2(2.0f * (_q0 * _q1 + _q2 * _q3), 1.0f - 2.0f * (_q1 * _q1 + _q2 * _q2)) * RAD_TO_DEG;
+  _pitch = asin(2.0f * (_q0 * _q2 - _q3 * _q1)) * RAD_TO_DEG;
+  
+  // Calculate yaw from quaternion
+  float yaw = atan2(2.0f * (_q0 * _q3 + _q1 * _q2), 1.0f - 2.0f * (_q2 * _q2 + _q3 * _q3)) * RAD_TO_DEG;
   
   // Ensure yaw is in 0-360 range
-  while (_yaw < 0.0f) _yaw += 360.0f;
-  while (_yaw >= 360.0f) _yaw -= 360.0f;
+  if (yaw < 0.0f) yaw += 360.0f;
+  
+  // We don't update _yaw here as we use the complementary filter with magnetometer
 }
 
 void IMUFusion::normalizeQuaternion() {
