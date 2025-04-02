@@ -208,12 +208,23 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   // Draw cardinal directions
   // 方位角の計算を修正 - 北が上になるように調整
   // 方位角は時計回りで、北が0度、東が90度、南が180度、西が270度
-  float angle = heading * PI / 180.0; 
+  float angle = -heading * PI / 180.0; 
   
   // North - 北を指す針（赤色）
+  // 画面上で北が上になるように描画（0度が上、時計回りに増加）
   int nx = centerX + radius * sin(angle);
   int ny = centerY - radius * cos(angle);
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
+  
+  // 北極星の表示（天の北極を示す青いマーク）
+  // 北極星は常に北（0度）に位置するため、固定位置に表示
+  int px = centerX;
+  int py = centerY - (radius * 0.7);
+  
+  // 北極星のマークを描画（青い十字）
+  M5.Display.fillCircle(px, py, 2, TFT_CYAN);
+  M5.Display.drawLine(px-3, py, px+3, py, TFT_CYAN);
+  M5.Display.drawLine(px, py-3, px, py+3, TFT_CYAN);
   
   // Add cardinal direction labels
   M5.Display.setTextColor(TFT_WHITE);
@@ -335,17 +346,17 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   float angle = heading * PI / 180.0; 
   
   // North - 北を指す針（赤色）
+  // 画面上で北が上になるように描画（0度が上、時計回りに増加）
   int nx = centerX + radius * sin(angle);
   int ny = centerY - radius * cos(angle);
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
   
-  // Calculate Polaris position relative to heading
-  // 北極星の方位角計算も同様に修正
-  float polarisAngle = polarisAz * PI / 180.0;
-  int px = centerX + (radius * 0.8) * sin(polarisAngle);
-  int py = centerY - (radius * 0.8) * cos(polarisAngle);
+  // 北極星の表示（天の北極を示す青いマーク）
+  // 北極星は常に北（0度）に位置するため、固定位置に表示
+  int px = centerX;
+  int py = centerY - (radius * 0.7);
   
-  // Draw Polaris indicator (star symbol)
+  // 北極星のマークを描画（青い十字）
   M5.Display.fillCircle(px, py, 2, TFT_CYAN);
   M5.Display.drawLine(px-3, py, px+3, py, TFT_CYAN);
   M5.Display.drawLine(px, py-3, px, py+3, TFT_CYAN);
@@ -505,12 +516,23 @@ void CompassDisplay::showCelestialOverlay(float heading, float pitch, float roll
   M5.Display.drawCircle(centerX, centerY, radius, TFT_WHITE);
   
   // Draw cardinal directions
-  float angle = (360 - heading) * PI / 180.0; 
+  float angle = -heading * PI / 180.0; 
   
   // North
   int nx = centerX + radius * sin(angle);
   int ny = centerY - radius * cos(angle);
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
+  
+  // Draw Polaris position
+  // 北極星は常に北（0度）に位置するため、固定位置に表示
+  int px = centerX;
+  int py = centerY - radius * 0.7;
+  
+  // Draw Polaris marker
+  uint16_t polarisColor = TFT_CYAN;
+  M5.Display.fillCircle(px, py, 3, polarisColor);
+  M5.Display.drawLine(px-4, py, px+4, py, polarisColor);
+  M5.Display.drawLine(px, py-4, px, py+4, polarisColor);
   
   // Draw Sun position
   float sunAngle = (sunAz - heading) * PI / 180.0;

@@ -19,6 +19,7 @@ Polaris Navigator is a compact, portable device designed to assist astrophotogra
 - **GPS Data Display**: Shows raw GPS data including latitude, longitude, and satellite status
 - **IMU Data Display**: Displays raw accelerometer, gyroscope, and magnetometer data for calibration
 - **IMU Calibration**: Provides a guided calibration process for the magnetometer and accelerometer/gyroscope sensors
+- **Compass Display**: Shows accurate heading with north indicator regardless of device orientation
 
 ## Hardware
 
@@ -37,10 +38,47 @@ The AtomS3R features a 9-axis sensor system consisting of the BMI270 (6-axis acc
 
 Calibration status is displayed in three levels (GOOD, OK, POOR) and shows "NOT CALIBRATED" when sensors are uncalibrated.
 
+## IMU Coordinate System and Heading Calculation
+
+The AtomS3R IMU coordinate system is defined as follows:
+- X-axis: Right direction of the device (when USB connector is facing down)
+- Y-axis: Up direction of the device (when USB connector is facing down)
+- Z-axis: Outward from the screen (perpendicular to the display)
+
+The heading calculation takes into account this coordinate system and applies appropriate axis adjustments:
+1. The magnetometer data is adjusted to match the device's physical orientation
+2. Tilt compensation is applied using pitch and roll data to ensure accurate heading regardless of device orientation
+3. The final heading is calculated using the adjusted and tilt-compensated magnetometer data
+
+The compass display shows a red line pointing to the current heading (north) and a cyan marker indicating the position of Polaris. As you rotate the device, the red line maintains its orientation relative to north, providing an intuitive navigation reference.
+
+### Important Notes on Compass and Heading Calculation
+
+#### Coordinate System Considerations
+- The AtomS3R's coordinate system requires careful axis mapping for correct heading calculation
+- The magnetometer (BMM150) data needs to be aligned with the device's physical orientation
+- Incorrect axis mapping can result in the compass needle pointing in the wrong direction
+
+#### Heading Calculation Methods
+- Simple heading calculation: `atan2(mag_y, mag_x) * 180.0 / PI`
+- For proper display orientation, the angle should be negated: `-heading * PI / 180.0`
+- Tilt compensation is essential for accurate heading when the device is not perfectly level
+
+#### Polaris Display Implementation
+- Polaris (North Star) should be displayed at a fixed position at the top of the compass
+- The position should be independent of device rotation: `px = centerX; py = centerY - (radius * 0.7);`
+- This creates a reference point that the compass needle (red line) should point to when facing north
+
+#### Common Issues and Solutions
+- If the compass needle doesn't move with device rotation, check the heading calculation in both the main sketch and IMUFusion class
+- If Polaris doesn't appear, ensure it's not hidden behind conditional display logic
+- For consistent behavior across different display modes, use the same angle calculation method throughout the code
+
 ## Implementation Notes
 
 - The IMU functionality uses custom `IMUFusion`, `BMI270`, and `BMM150class` classes instead of the M5.Imu class
 - The IMUFusion class provides sensor fusion algorithms for accurate orientation data
+- The heading calculation uses the formula `atan2(mag_y, mag_x)` after appropriate axis adjustments and tilt compensation
 - GPS communication uses pins: TX = 5, RX = -1 (when using AtomicBase GPS)
 - GPS data is saved to flash memory and reused when GPS signal is unavailable
 - The UI is optimized for the small AtomS3R display with clear indicators for alignment

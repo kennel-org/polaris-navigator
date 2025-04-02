@@ -178,14 +178,23 @@ void IMUFusion::update(float deltaTime) {
 }
 
 float IMUFusion::getYaw() {
-  // Apply magnetic declination correction
-  float correctedYaw = _yaw + _magDeclination;
+  // 単純に地磁気センサーの値から方位角を計算
+  // メインスケッチファイルと同じ方法を使用
+  float heading = atan2(_bmm150->mag_y, _bmm150->mag_x) * RAD_TO_DEG;
   
-  // Ensure yaw is in 0-360 range
-  while (correctedYaw < 0.0f) correctedYaw += 360.0f;
-  while (correctedYaw >= 360.0f) correctedYaw -= 360.0f;
+  // 0-360度の範囲に変換
+  if (heading < 0) {
+    heading += 360.0f;
+  }
   
-  return correctedYaw;
+  // 磁気偏角の補正を適用
+  heading += _magDeclination;
+  
+  // 0-360度の範囲に保つ
+  while (heading < 0.0f) heading += 360.0f;
+  while (heading >= 360.0f) heading -= 360.0f;
+  
+  return heading;
 }
 
 float IMUFusion::getPitch() {
