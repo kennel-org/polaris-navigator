@@ -104,6 +104,8 @@ int second = 0;
 
 // IMU data
 float heading = 0.0;         // Compass heading in degrees
+float heading_raw = 0.0;     // 磁力計の生値から計算した方位角
+bool use_raw_heading = true; // 生値の方位角を使用するフラグ
 float pitch = 0.0;           // Pitch angle in degrees
 float roll = 0.0;            // Roll angle in degrees
 bool imuCalibrated = false;
@@ -585,6 +587,39 @@ void readIMU() {
     static float filteredHeading = heading;
     filteredHeading = 0.9 * filteredHeading + 0.1 * heading;
     heading = filteredHeading;
+    
+    // 実験的な実装: 磁力計の生値から直接方位角を計算
+    // 生値から単純にatan2を使用して方位角を計算（傾き補正なし）
+    heading_raw = atan2(mag_adj[1], mag_adj[0]) * 180.0 / PI;
+    
+    // 0-360度の範囲に変換
+    if (heading_raw < 0) {
+      heading_raw += 360.0;
+    }
+    
+    // 異常値チェック
+    static float lastValidHeadingRaw = heading_raw;
+    if (isnan(heading_raw) || heading_raw < 0 || heading_raw > 360) {
+      Serial.println("Warning: Invalid raw heading detected, using last valid value");
+      heading_raw = lastValidHeadingRaw;
+    } else {
+      // 有効な値の場合は保存
+      lastValidHeadingRaw = heading_raw;
+    }
+    
+    // 簡単なローパスフィルタを適用して急激な変化を抑制
+    static float filteredHeadingRaw = heading_raw;
+    filteredHeadingRaw = 0.9 * filteredHeadingRaw + 0.1 * heading_raw;
+    heading_raw = filteredHeadingRaw;
+    
+    // 使用する方位角を選択
+    if (use_raw_heading) {
+      // 生値の方位角をheadingに上書き
+      Serial.println("Using RAW heading value (no tilt compensation)");
+    } else {
+      Serial.println("Using tilt-compensated heading value");
+    }
+    
   } else {
     // センサーデータが無効な場合は前回の値を維持
     Serial.println("Warning: Cannot calculate heading, sensor data unavailable");
@@ -593,6 +628,8 @@ void readIMU() {
   // デバッグ出力
   Serial.print("Orientation: Heading=");
   Serial.print(heading);
+  Serial.print(", Heading_Raw=");
+  Serial.print(heading_raw);
   Serial.print(", Pitch=");
   Serial.print(pitch);
   Serial.print(", Roll=");
@@ -704,15 +741,18 @@ void updateDisplay() {
   // Check IMU and GPS status
   bool imuDataAvailable = true;  // IMU data is always available
   
+  // 使用する方位角を選択
+  float displayHeading = use_raw_heading ? heading_raw : heading;
+  
   // Update display based on current mode
   switch (currentMode) {
     case POLAR_ALIGNMENT:
       // Polar alignment mode - Display compass with Polaris position
-      display.showPolarAlignment(heading, polarisAz, polarisAlt, pitch, roll);
+      display.showPolarAlignment(displayHeading, polarisAz, polarisAlt, pitch, roll);
       break;
     case CELESTIAL_DATA:  
       // Celestial mode - Display compass with sun/moon positions
-      display.showCelestialOverlay(heading, pitch, roll, 
+      display.showCelestialOverlay(displayHeading, pitch, roll, 
                                  sunAz, sunAlt, 
                                  moonAz, moonAlt, moonPhase);
       break;
@@ -750,7 +790,9 @@ void updateDisplay() {
   Serial.print(", IMU Valid: ");
   Serial.print(imuDataAvailable ? "Yes" : "No");
   Serial.print(", GPS Valid: ");
-  Serial.println(gpsValid ? "Yes" : "No");
+  Serial.print(gpsValid ? "Yes" : "No");
+  Serial.print(", Using Raw Heading: ");
+  Serial.println(use_raw_heading ? "Yes" : "No");
 }
 
 void handleButtonPress() {
@@ -828,8 +870,61 @@ void handleLongPress() {
   // Handle long press based on current mode
   switch (currentMode) {
     case POLAR_ALIGNMENT: 
-      // Toggle detailed view
-      // TODO: Implement detailed view toggle
+      // 方位角の計算方法を切り替え（生値 <-> 傾き補正値）
+      use_raw_heading = !use_raw_heading;
+      Serial.print("Toggled heading calculation method. Using raw heading: ");
+      Serial.println(use_raw_heading ? "YES (no tilt compensation)" : "NO (with tilt compensation)");
+      
+      // 方位角計算方法の変更を通知
+      M5.Display.fillScreen(TFT_BLACK);
+      M5.Display.setTextColor(TFT_WHITE);
+      M5.Display.setTextSize(1);
+      M5.Display.setCursor(2, 10);
+      M5.Display.println("Heading Method:");
+      M5.Display.setCursor(2, 30);
+      if (use_raw_heading) {
+        M5.Display.setTextColor(TFT_YELLOW);
+        M5.Display.println("RAW VALUE");
+        M5.Display.setTextColor(TFT_WHITE);
+        M5.Display.setCursor(2, 50);
+        M5.Display.println("No tilt compensation");
+      } else {
+        M5.Display.setTextColor(TFT_GREEN);
+        M5.Display.println("COMPENSATED");
+        M5.Display.setTextColor(TFT_WHITE);
+        M5.Display.setCursor(2, 50);
+        M5.Display.println("With tilt compensation");
+      }
+      delay(1500); // 1.5秒間表示
+      break;
+      
+    case CELESTIAL_DATA:
+      // 方位角の計算方法を切り替え（生値 <-> 傾き補正値）
+      use_raw_heading = !use_raw_heading;
+      Serial.print("Toggled heading calculation method. Using raw heading: ");
+      Serial.println(use_raw_heading ? "YES (no tilt compensation)" : "NO (with tilt compensation)");
+      
+      // 方位角計算方法の変更を通知
+      M5.Display.fillScreen(TFT_BLACK);
+      M5.Display.setTextColor(TFT_WHITE);
+      M5.Display.setTextSize(1);
+      M5.Display.setCursor(2, 10);
+      M5.Display.println("Heading Method:");
+      M5.Display.setCursor(2, 30);
+      if (use_raw_heading) {
+        M5.Display.setTextColor(TFT_YELLOW);
+        M5.Display.println("RAW VALUE");
+        M5.Display.setTextColor(TFT_WHITE);
+        M5.Display.setCursor(2, 50);
+        M5.Display.println("No tilt compensation");
+      } else {
+        M5.Display.setTextColor(TFT_GREEN);
+        M5.Display.println("COMPENSATED");
+        M5.Display.setTextColor(TFT_WHITE);
+        M5.Display.setCursor(2, 50);
+        M5.Display.println("With tilt compensation");
+      }
+      delay(1500); // 1.5秒間表示
       break;
       
     case GPS_DATA: 
@@ -845,46 +940,29 @@ void handleLongPress() {
       
       // Start IMU calibration
       currentMode = CALIBRATION_MODE;
-      Serial.println("Entering CALIBRATION_MODE");
-      updateDisplay(); // モード変更を画面に反映
-      
-      // キャリブレーション実行
-      calibrateIMU();
-      break;
-      
-    case CELESTIAL_DATA: 
-      // Toggle between sun and moon focus
-      // TODO: Implement celestial focus toggle
+      Serial.println("Starting IMU calibration");
       break;
       
     case RAW_DATA: 
-      // RAW_DATAモードでの長押しはキャリブレーションを開始
-      // 前のRAWモードを記憶
-      previousMode = currentMode;
-      previousRawMode = currentRawMode;
-      Serial.println("Saving previous mode: RAW_DATA, submode: " + String(currentRawMode));
-      
-      // キャリブレーションモードに設定
-      currentMode = CALIBRATION_MODE;
-      Serial.println("Entering CALIBRATION_MODE");
-      updateDisplay(); // モード変更を画面に反映
-      
-      // キャリブレーション実行
-      calibrateIMU();
+      // RAW_DATAモード内でのサブモード切り替え
+      if (currentRawMode == RAW_IMU) {
+        // IMUデータ表示中の長押しでキャリブレーションモードへ
+        previousMode = currentMode;
+        previousRawMode = currentRawMode;
+        Serial.println("Saving previous mode: RAW_DATA (RAW_IMU)");
+        
+        currentMode = CALIBRATION_MODE;
+        Serial.println("Starting IMU calibration from RAW mode");
+      }
       break;
       
     case CALIBRATION_MODE: 
-      // Start/stop calibration process
-      if (calibrationManager.isCalibrating()) {
-        // Cancel ongoing calibration
-        calibrationManager.cancelCalibration();
-        Serial.println("Calibration cancelled");
-      } else {
-        // Start calibration
-        calibrateIMU();
-      }
+      // キャリブレーションモードでの長押しは無視
       break;
   }
+  
+  // Update display
+  updateDisplay();
 }
 
 void cycleRawDataMode() {

@@ -181,7 +181,7 @@ void RawDataDisplay::showRawIMU() {
   M5.Display.setTextSize(1);
   
   // センサー状態表示
-  int y = 25;
+  int y = 15; // 2行上に移動（25から15に変更）
   M5.Display.setCursor(2, y);
   M5.Display.print("Acc: ");
   M5.Display.print(accOk ? "OK" : "NG");
@@ -200,52 +200,44 @@ void RawDataDisplay::showRawIMU() {
     M5.Display.setCursor(2, y);
     M5.Display.print("Acc X: ");
     M5.Display.print(acc[0], 2);
-    M5.Display.print(" G");
+    M5.Display.print(" g");
     y += 8;
     
     M5.Display.setCursor(2, y);
     M5.Display.print("Acc Y: ");
     M5.Display.print(acc[1], 2);
-    M5.Display.print(" G");
+    M5.Display.print(" g");
     y += 8;
     
     M5.Display.setCursor(2, y);
     M5.Display.print("Acc Z: ");
     M5.Display.print(acc[2], 2);
-    M5.Display.print(" G");
-    y += 10;
-  } else {
-    M5.Display.setCursor(2, y);
-    M5.Display.print("Accelerometer data unavailable");
+    M5.Display.print(" g");
     y += 10;
   }
   
   // ジャイロデータ
   if (gyroOk) {
     M5.Display.setCursor(2, y);
-    M5.Display.print("Gyro X: ");
-    M5.Display.print(gyro[0], 2);
+    M5.Display.print("Gyr X: ");
+    M5.Display.print(gyro[0], 1);
     M5.Display.print(" dps");
     y += 8;
     
     M5.Display.setCursor(2, y);
-    M5.Display.print("Gyro Y: ");
-    M5.Display.print(gyro[1], 2);
+    M5.Display.print("Gyr Y: ");
+    M5.Display.print(gyro[1], 1);
     M5.Display.print(" dps");
     y += 8;
     
     M5.Display.setCursor(2, y);
-    M5.Display.print("Gyro Z: ");
-    M5.Display.print(gyro[2], 2);
+    M5.Display.print("Gyr Z: ");
+    M5.Display.print(gyro[2], 1);
     M5.Display.print(" dps");
-    y += 10;
-  } else {
-    M5.Display.setCursor(2, y);
-    M5.Display.print("Gyroscope data unavailable");
     y += 10;
   }
   
-  // 磁力計データ
+  // 地磁気データ
   if (magOk) {
     M5.Display.setCursor(2, y);
     M5.Display.print("Mag X: ");
@@ -264,13 +256,9 @@ void RawDataDisplay::showRawIMU() {
     M5.Display.print(mag[2], 1);
     M5.Display.print(" uT");
     y += 10;
-  } else {
-    M5.Display.setCursor(2, y);
-    M5.Display.print("Magnetometer data unavailable");
-    y += 10;
   }
   
-  // 方位角、ピッチ、ロール
+  // 姿勢データ
   M5.Display.setCursor(2, y);
   M5.Display.print("Heading: ");
   M5.Display.print(heading, 1);
@@ -287,6 +275,21 @@ void RawDataDisplay::showRawIMU() {
   M5.Display.print("Roll: ");
   M5.Display.print(roll, 1);
   M5.Display.print(" deg");
+  
+  // キャリブレーション情報を表示
+  // 画面下部に小さく表示
+  extern bool imuCalibrated;
+  
+  // 画面下部に長押しでキャリブレーションモードに入る情報を表示
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setTextSize(1);
+  M5.Display.setCursor(2, M5.Display.height() - 16);
+  M5.Display.print("Calibration: ");
+  M5.Display.print(imuCalibrated ? "OK" : "NG");
+  
+  M5.Display.setTextColor(TFT_CYAN);
+  M5.Display.setCursor(2, M5.Display.height() - 8);
+  M5.Display.print("Long press to calibrate");
 }
 
 // GPS生データを表示する関数

@@ -24,7 +24,8 @@ public:
   void begin();
   
   // Update orientation (call this regularly)
-  void update(float deltaTime);
+  // If deltaTime is not provided (or <= 0), it will be calculated automatically
+  void update(float deltaTime = 0);
   
   // Get orientation in Euler angles (degrees)
   float getYaw();    // Heading/Azimuth (0-360)
@@ -55,7 +56,11 @@ private:
   
   // Filter parameters
   float _filterGain;  // Complementary filter gain (0.0-1.0)
+  float _alpha;       // Complementary filter alpha (gyro weight)
   float _magDeclination;  // Magnetic declination correction in degrees
+  
+  // Timing
+  unsigned long _lastUpdate;  // Last update timestamp in milliseconds
   
   // Calibration status
   bool _isCalibrated;
