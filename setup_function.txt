@@ -1,0 +1,41 @@
+void setup() {
+  // Initialize hardware
+  setupHardware();
+  
+  // Initialize startup screen
+  startupScreen.begin();
+  
+  // Show splash screen
+  startupScreen.showSplashScreen();
+  
+  // Wait for splash screen display
+  delay(2000);
+  
+  // Initialize sensors
+  setupIMU();
+  setupGPS();
+  display.begin();
+  
+  // Initialize other components
+  rawDisplay.begin();
+  calibrationManager.begin();
+  settingsManager.begin();
+  settingsMenu.begin();
+  gpsDataManager.begin();
+  
+  // BMM150のインスタンスをCompassDisplayに設定
+  display.setBMM150(&bmm150);
+  
+  // Initialize timing
+  lastUpdateTime = millis();
+  
+  // Show initialization complete
+  startupScreen.showInitComplete();
+  
+  // 初期化完了後、最初のセンサーデータを読み取る
+  readIMU();
+  
+  // 初期化完了後、明示的に最初の画面更新を行う
+  // これにより、loop関数の最初の実行を待たずにメイン画面に遷移する
+  updateDisplay();
+}
