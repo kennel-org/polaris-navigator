@@ -208,7 +208,7 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   // Draw cardinal directions
   // 方位角の計算を修正 - 北が上になるように調整
   // 方位角は時計回りで、北が0度、東が90度、南が180度、西が270度
-  float angle = -heading * PI / 180.0; 
+  float angle = heading * DEG_TO_RAD; 
   
   // North - 北を指す針（赤色）
   // 画面上で北が上になるように描画（0度が上、時計回りに増加）
@@ -343,7 +343,7 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   // Draw cardinal directions
   // 方位角の計算を修正 - 北が上になるように調整
   // 方位角は時計回りで、北が0度、東が90度、南が180度、西が270度
-  float angle = heading * PI / 180.0; 
+  float angle = heading * DEG_TO_RAD; 
   
   // North - 北を指す針（赤色）
   // 画面上で北が上になるように描画（0度が上、時計回りに増加）
