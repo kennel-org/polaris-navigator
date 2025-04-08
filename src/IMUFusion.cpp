@@ -8,6 +8,7 @@
  */
 
 #include "IMUFusion.h"
+#include "myMahonyAHRS.h"
 #include <math.h>
 #include <M5Unified.h>  // M5.update()を使用するために必要
 
@@ -46,40 +47,12 @@ void IMUFusion::begin() {
   _bmi270->readAcceleration();
   _bmm150->readMagnetometer();
   
-  // Calculate initial orientation from accelerometer
-  float accX = _bmi270->acc_x;
-  float accY = _bmi270->acc_y;
-  float accZ = _bmi270->acc_z;
+  // Initialize MahonyAHRS algorithm
+  myIMU::MahonyAHRSinit();
   
-  // Normalize accelerometer data
-  float norm = sqrt(accX * accX + accY * accY + accZ * accZ);
-  if (norm > 0.0f) {
-    accX /= norm;
-    accY /= norm;
-    accZ /= norm;
-  }
-  
-  // Initial pitch and roll from accelerometer
-  _pitch = asin(-accX) * RAD_TO_DEG;
-  _roll = atan2(accY, accZ) * RAD_TO_DEG;
-  
-  // Initial yaw from magnetometer with tilt compensation
-  _yaw = _bmm150->calculateTiltCompensatedHeading(_pitch, _roll);
-  
-  // Convert Euler angles to quaternion
-  float cosYaw = cos(_yaw * DEG_TO_RAD * 0.5f);
-  float sinYaw = sin(_yaw * DEG_TO_RAD * 0.5f);
-  float cosPitch = cos(_pitch * DEG_TO_RAD * 0.5f);
-  float sinPitch = sin(_pitch * DEG_TO_RAD * 0.5f);
-  float cosRoll = cos(_roll * DEG_TO_RAD * 0.5f);
-  float sinRoll = sin(_roll * DEG_TO_RAD * 0.5f);
-  
-  _q0 = cosRoll * cosPitch * cosYaw + sinRoll * sinPitch * sinYaw;
-  _q1 = sinRoll * cosPitch * cosYaw - cosRoll * sinPitch * sinYaw;
-  _q2 = cosRoll * sinPitch * cosYaw + sinRoll * cosPitch * sinYaw;
-  _q3 = cosRoll * cosPitch * sinYaw - sinRoll * sinPitch * cosYaw;
-  
-  normalizeQuaternion();
+  // Set default values for Mahony algorithm
+  myIMU::myKp = 8.0f;  // 比例ゲイン
+  myIMU::myKi = 0.0f;  // 積分ゲイン
   
   _lastUpdate = millis();
 }
@@ -102,99 +75,54 @@ void IMUFusion::update(float deltaTime) {
   _bmi270->readGyro();
   _bmm150->readMagnetometer();
   
-  // Get gyroscope data (in rad/s)
-  float gx = _bmi270->gyr_x * DEG_TO_RAD;
-  float gy = _bmi270->gyr_y * DEG_TO_RAD;
+  // リンク先のコードを参考にした軸調整
+  float gx = _bmi270->gyr_y * DEG_TO_RAD;
+  float gy = -_bmi270->gyr_x * DEG_TO_RAD;
   float gz = _bmi270->gyr_z * DEG_TO_RAD;
   
-  // Get accelerometer data
-  float ax = _bmi270->acc_x;
-  float ay = _bmi270->acc_y;
+  float ax = _bmi270->acc_y;
+  float ay = -_bmi270->acc_x;
   float az = _bmi270->acc_z;
   
-  // Get magnetometer data
-  float mx = _bmm150->mag_x;
+  float mx = -_bmm150->mag_x;
   float my = _bmm150->mag_y;
-  float mz = _bmm150->mag_z;
+  float mz = -_bmm150->mag_z;
   
-  // Normalize accelerometer data
-  float normAcc = sqrt(ax * ax + ay * ay + az * az);
-  if (normAcc > 0.0f) {
-    ax /= normAcc;
-    ay /= normAcc;
-    az /= normAcc;
-  }
+  // MahonyAHRSアルゴリズムを使用して姿勢を更新
+  myIMU::MahonyAHRSupdate(gx, gy, gz, ax, ay, az, mx, my, mz, deltaTime);
   
-  // Normalize magnetometer data
-  float normMag = sqrt(mx * mx + my * my + mz * mz);
-  if (normMag > 0.0f) {
-    mx /= normMag;
-    my /= normMag;
-    mz /= normMag;
-  }
+  // クォータニオンをコピー
+  _q0 = myIMU::q[0];
+  _q1 = myIMU::q[1];
+  _q2 = myIMU::q[2];
+  _q3 = myIMU::q[3];
   
-  // Calculate pitch and roll from accelerometer (for complementary filter)
-  float accelPitch = asin(-ax) * RAD_TO_DEG;
-  float accelRoll = atan2(ay, az) * RAD_TO_DEG;
-  
-  // Update quaternion using gyroscope data
-  float halfT = deltaTime * 0.5f;
-  float q0_dot = 0.5f * (-_q1 * gx - _q2 * gy - _q3 * gz);
-  float q1_dot = 0.5f * (_q0 * gx + _q2 * gz - _q3 * gy);
-  float q2_dot = 0.5f * (_q0 * gy - _q1 * gz + _q3 * gx);
-  float q3_dot = 0.5f * (_q0 * gz + _q1 * gy - _q2 * gx);
-  
-  _q0 += q0_dot * deltaTime;
-  _q1 += q1_dot * deltaTime;
-  _q2 += q2_dot * deltaTime;
-  _q3 += q3_dot * deltaTime;
-  
-  normalizeQuaternion();
-  
-  // Convert quaternion to Euler angles
+  // クォータニオンからオイラー角を計算
   updateEulerAngles();
-  
-  // Apply complementary filter for pitch and roll
-  _pitch = _alpha * _pitch + (1.0f - _alpha) * accelPitch;
-  _roll = _alpha * _roll + (1.0f - _alpha) * accelRoll;
-  
-  // Get tilt-compensated heading from magnetometer
-  float magHeading = _bmm150->calculateTiltCompensatedHeading(_pitch, _roll);
-  
-  // Apply complementary filter for yaw
-  // Calculate the difference between current yaw and mag heading
-  float yawDiff = magHeading - _yaw;
-  
-  // Normalize the difference to -180 to +180
-  if (yawDiff > 180.0f) yawDiff -= 360.0f;
-  if (yawDiff < -180.0f) yawDiff += 360.0f;
-  
-  // Apply the filter with a lower weight for magnetometer
-  _yaw += yawDiff * (1.0f - _alpha) * 0.5f;
-  
-  // Ensure yaw is in 0-360 range
-  while (_yaw < 0.0f) _yaw += 360.0f;
-  while (_yaw >= 360.0f) _yaw -= 360.0f;
 }
 
 float IMUFusion::getYaw() {
-  // 単純に地磁気センサーの値から方位角を計算
-  // メインスケッチファイルと同じ方法を使用
-  float heading = atan2(_bmm150->mag_y, _bmm150->mag_x) * RAD_TO_DEG;
+  // リンク先のコードを参考にした方位角計算
+  float yaw = atan2(2*(_q1*_q2 + _q0*_q3), _q0*_q0+_q1*_q1-_q2*_q2-_q3*_q3);
   
-  // 0-360度の範囲に変換
-  if (heading < 0) {
-    heading += 360.0f;
-  }
+  // 調整（リンク先のコードと同様）
+  yaw = -yaw - PI/2;
+  
+  // 0〜2π（0〜360度）の範囲に正規化
+  if (yaw < 0) yaw += 2*PI;
+  if (yaw > 2*PI) yaw -= 2*PI;
+  
+  // ラジアンから度に変換
+  yaw *= RAD_TO_DEG;
   
   // 磁気偏角の補正を適用
-  heading += _magDeclination;
+  yaw += _magDeclination;
   
-  // 0-360度の範囲に保つ
-  while (heading < 0.0f) heading += 360.0f;
-  while (heading >= 360.0f) heading -= 360.0f;
+  // 0〜360度の範囲に保つ
+  while (yaw < 0.0f) yaw += 360.0f;
+  while (yaw >= 360.0f) yaw -= 360.0f;
   
-  return heading;
+  return yaw;
 }
 
 float IMUFusion::getPitch() {
@@ -260,17 +188,11 @@ void IMUFusion::setMagneticDeclination(float declination) {
 }
 
 void IMUFusion::updateEulerAngles() {
-  // Convert quaternion to Euler angles
-  _roll = atan2(2.0f * (_q0 * _q1 + _q2 * _q3), 1.0f - 2.0f * (_q1 * _q1 + _q2 * _q2)) * RAD_TO_DEG;
-  _pitch = asin(2.0f * (_q0 * _q2 - _q3 * _q1)) * RAD_TO_DEG;
+  // リンク先のコードを参考にしたオイラー角計算
+  _pitch = asin(-2 * _q1 * _q3 + 2 * _q0 * _q2) * RAD_TO_DEG;
+  _roll = atan2(2 * _q2 * _q3 + 2 * _q0 * _q1, -2 * _q1 * _q1 - 2 * _q2 * _q2 + 1) * RAD_TO_DEG;
   
-  // Calculate yaw from quaternion
-  float yaw = atan2(2.0f * (_q0 * _q3 + _q1 * _q2), 1.0f - 2.0f * (_q2 * _q2 + _q3 * _q3)) * RAD_TO_DEG;
-  
-  // Ensure yaw is in 0-360 range
-  if (yaw < 0.0f) yaw += 360.0f;
-  
-  // We don't update _yaw here as we use the complementary filter with magnetometer
+  // ヨー角（方位角）は getYaw() メソッドで計算
 }
 
 void IMUFusion::normalizeQuaternion() {

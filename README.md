@@ -50,7 +50,7 @@ The heading calculation takes into account this coordinate system and applies ap
 2. Tilt compensation is applied using pitch and roll data to ensure accurate heading regardless of device orientation
 3. The final heading is calculated using the adjusted and tilt-compensated magnetometer data
 
-The compass display shows a red line pointing to the current heading (north) and a cyan marker indicating the position of Polaris. As you rotate the device, the red line maintains its orientation relative to north, providing an intuitive navigation reference.
+The compass display shows a red line pointing to the current heading and a cyan marker indicating the position of Polaris (North Star). As you rotate the device, the red line maintains its orientation relative to north, providing an intuitive navigation reference.
 
 ### Important Notes on Compass and Heading Calculation
 
@@ -65,8 +65,8 @@ The compass display shows a red line pointing to the current heading (north) and
 - Tilt compensation is essential for accurate heading when the device is not perfectly level
 
 #### Polaris Display Implementation
-- Polaris (North Star) should be displayed at a fixed position at the top of the compass
-- The position should be independent of device rotation: `px = centerX; py = centerY - (radius * 0.7);`
+- Polaris (North Star) is displayed at a fixed position at the top of the compass
+- The position is independent of device rotation: `px = centerX; py = centerY - (radius * 0.7);`
 - This creates a reference point that the compass needle (red line) should point to when facing north
 
 #### Common Issues and Solutions
@@ -102,6 +102,67 @@ Press the button to cycle through different data display modes:
 ## Development Status
 
 This project is currently under development.
+
+## Polar Alignment Visualization Improvements
+
+### Implemented Approaches
+We have explored several approaches to improve the polar alignment visualization:
+
+1. **Circle-Based Visualization**
+   - Implemented a circle where the center represents the current position and a cyan dot shows the target position (Polaris)
+   - Azimuth difference is mapped to horizontal (X-axis) movement, altitude difference to vertical (Y-axis) movement
+   - A red line connects current position to target position to show adjustment direction
+   - Current position is marked with a yellow cross at the center
+
+2. **Numerical Information Display**
+   - Added numerical display of azimuth and altitude differences with +/- signs
+   - Included current heading and pitch values for more detailed information
+   - Positioned information below the compass circle for easy reference
+
+3. **Visual Indicators**
+   - Maintained the altitude indicator bar on the left side for vertical alignment assistance
+   - Added cardinal direction markers (N, S, E, W) to maintain orientation awareness
+   - Included a fixed Polaris marker at the top of the compass for reference
+
+### Technical Challenges Encountered
+
+1. **Target Position Constraints**
+   - **Problem**: When azimuth/altitude differences were large, the target position would appear outside the circle or off-screen
+   - **Attempted Solution**: Implemented constraints to keep the target position on the circle's circumference when differences exceed threshold
+   - **Issues**: Implementation caused display issues with the red line and position calculations
+
+2. **Drawing Order Issues**
+   - **Problem**: Incorrect drawing order caused visual elements to overlap improperly
+   - **Solution**: Established proper drawing sequence (background → circle → cardinal directions → target position → connecting line → current position marker)
+
+3. **Coordinate Calculations**
+   - **Problem**: Inconsistent coordinate transformations between heading/pitch angles and screen coordinates
+   - **Solution**: Standardized transformation with proper scaling factor (radius/30.0) to make 30° difference reach the circle edge
+
+4. **Visual Element Conflicts**
+   - **Problem**: Adding new visual elements sometimes hid or conflicted with existing ones
+   - **Solution**: Carefully positioned elements and maintained consistent color coding (red for heading, cyan for target, yellow for current position)
+
+### Future Improvement Considerations
+
+1. **Adaptive Scaling**
+   - Implement dynamic scaling based on alignment precision (larger scale for fine adjustments)
+   - Add zoom functionality to switch between coarse and fine adjustment modes
+
+2. **Enhanced Visual Feedback**
+   - Color gradient for the connecting line based on distance to target
+   - Pulsing animation or size changes when approaching correct alignment
+   - Success indication when alignment is within acceptable tolerance
+
+3. **Optimization Approaches**
+   - Implement sprite-based rendering for smoother updates
+   - Selective redrawing of changing elements only
+   - Memory usage optimization for better performance
+
+4. **User Experience Enhancements**
+   - Add guidance text for adjustment actions
+   - Implement haptic or LED feedback when approaching correct alignment
+   - Save and recall previous alignment settings
 
 ## License
 

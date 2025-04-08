@@ -15,6 +15,7 @@
 #include "CelestialOverlay.h"
 #include "DisplayModes.h"
 #include "AtomicBaseGPS.h"
+#include "BMM150class.h"
 
 // Color definitions
 #define COLOR_RED    0xFF0000
@@ -51,6 +52,9 @@ public:
   
   // Initialize display
   void begin();
+  
+  // Set BMM150 magnetometer reference
+  void setBMM150(BMM150class* bmm150);
   
   // Show welcome screen
   void showWelcome();
@@ -90,6 +94,9 @@ private:
   
   // Celestial overlay
   CelestialOverlay _celestialOverlay;
+  
+  // BMM150 magnetometer reference
+  BMM150class* _bmm150;
   
   // Draw compass rose
   void drawCompassRose(float heading);

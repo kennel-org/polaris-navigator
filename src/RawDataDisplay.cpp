@@ -595,40 +595,128 @@ void RawDataDisplay::showDebugInfo(const char* debugMessage) {
   M5.Display.setTextColor(0xFD20); // オレンジ色
   M5.Display.setTextSize(1);
   
-  int y = 25;
+  // グローバル変数からIMUデータを取得
+  extern BMI270 bmi270;
+  extern BMM150class bmm150;
+  extern float heading, pitch, roll;
   
-  // デバッグメッセージ
+  // 直接センサーからデータを取得
+  // 最新のデータを取得するために直接センサーから読み取り
+  bmi270.readAcceleration();
+  bmi270.readGyro();
+  bmm150.readMagnetometer();
+  
+  // XY, YZ, XZ平面の方位角を計算
+  float xy_angle = atan2(bmm150.mag_y, bmm150.mag_x) * 180.0 / PI;
+  if (xy_angle < 0) xy_angle += 360.0;
+  
+  float yz_angle = atan2(bmm150.mag_z, bmm150.mag_y) * 180.0 / PI;
+  if (yz_angle < 0) yz_angle += 360.0;
+  
+  float xz_angle = atan2(bmm150.mag_z, bmm150.mag_x) * 180.0 / PI;
+  if (xz_angle < 0) xz_angle += 360.0;
+  
+  // タイトル表示
+  M5.Display.setCursor(2, 10);
+  M5.Display.println("SENSOR DEBUG VIEW");
+  
+  // コンパスローズを描画（中央上部）
+  int centerX = M5.Display.width() / 2;
+  int centerY = 45;
+  int radius = 25;
+  
+  // コンパス円を描画
+  M5.Display.drawCircle(centerX, centerY, radius, TFT_WHITE);
+  
+  // 方位の表示
+  M5.Display.setCursor(centerX - 3, centerY - radius - 8);
+  M5.Display.print("N");
+  M5.Display.setCursor(centerX + radius + 3, centerY - 3);
+  M5.Display.print("E");
+  M5.Display.setCursor(centerX - 3, centerY + radius + 2);
+  M5.Display.print("S");
+  M5.Display.setCursor(centerX - radius - 8, centerY - 3);
+  M5.Display.print("W");
+  
+  // 3軸をRGBの三本線で表示
+  // X軸（赤）- XY平面の角度を使用
+  float x_angle = -xy_angle * PI / 180.0;
+  int x_end_x = centerX + radius * cos(x_angle);
+  int x_end_y = centerY + radius * sin(x_angle);
+  M5.Display.drawLine(centerX, centerY, x_end_x, x_end_y, TFT_RED);
+  
+  // Y軸（緑）- YZ平面の角度を使用
+  float y_angle = -yz_angle * PI / 180.0;
+  int y_end_x = centerX + radius * cos(y_angle);
+  int y_end_y = centerY + radius * sin(y_angle);
+  M5.Display.drawLine(centerX, centerY, y_end_x, y_end_y, TFT_GREEN);
+  
+  // Z軸（青）- XZ平面の角度を使用
+  float z_angle = -xz_angle * PI / 180.0;
+  int z_end_x = centerX + radius * cos(z_angle);
+  int z_end_y = centerY + radius * sin(z_angle);
+  M5.Display.drawLine(centerX, centerY, z_end_x, z_end_y, TFT_BLUE);
+  
+  // 方位角の数値情報を表示
+  int y = centerY + radius + 10;
+  
+  // XY平面の方位角（通常のコンパス方位角）
+  M5.Display.setTextColor(TFT_RED);
   M5.Display.setCursor(2, y);
-  M5.Display.print(debugMessage);
+  M5.Display.print("XY: ");
+  M5.Display.print(xy_angle, 1);
+  M5.Display.print("°");
   y += 10;
   
-  // 現在のモード
+  // YZ平面の方位角
+  M5.Display.setTextColor(TFT_GREEN);
   M5.Display.setCursor(2, y);
-  M5.Display.print("Current Mode: ");
-  M5.Display.print(_currentMode);
+  M5.Display.print("YZ: ");
+  M5.Display.print(yz_angle, 1);
+  M5.Display.print("°");
   y += 10;
   
-  // 更新時間
+  // XZ平面の方位角
+  M5.Display.setTextColor(TFT_BLUE);
   M5.Display.setCursor(2, y);
-  M5.Display.print("Last Update: ");
-  M5.Display.print(millis() - _lastUpdateTime);
-  M5.Display.print("ms ago");
+  M5.Display.print("XZ: ");
+  M5.Display.print(xz_angle, 1);
+  M5.Display.print("°");
+  y += 15;
+  
+  // センサー生値の表示
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.setCursor(2, y);
+  M5.Display.println("Raw Sensor Values:");
   y += 10;
   
-  // フレームレート
-  static unsigned long lastFrameTime = 0;
-  static int frameCount = 0;
-  static float fps = 0;
-  
-  frameCount++;
-  if (millis() - lastFrameTime >= 1000) {
-    fps = frameCount / ((millis() - lastFrameTime) / 1000.0);
-    frameCount = 0;
-    lastFrameTime = millis();
-  }
-  
+  // 磁力計の生値
+  M5.Display.setTextColor(TFT_CYAN);
   M5.Display.setCursor(2, y);
-  M5.Display.print("FPS: ");
-  M5.Display.print(fps, 1);
+  M5.Display.print("Mag X: ");
+  M5.Display.print(bmm150.mag_x, 2);
+  M5.Display.setCursor(80, y);
+  M5.Display.print("Y: ");
+  M5.Display.print(bmm150.mag_y, 2);
   y += 10;
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Mag Z: ");
+  M5.Display.print(bmm150.mag_z, 2);
+  y += 15;
+  
+  // 加速度計の生値
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Acc X: ");
+  M5.Display.print(bmi270.acc_x, 2);
+  M5.Display.setCursor(80, y);
+  M5.Display.print("Y: ");
+  M5.Display.print(bmi270.acc_y, 2);
+  y += 10;
+  M5.Display.setCursor(2, y);
+  M5.Display.print("Acc Z: ");
+  M5.Display.print(bmi270.acc_z, 2);
+  
+  // LED色をシアンに設定
+  setPixelColor(0x00FFFF); // シアン
 }

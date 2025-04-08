@@ -338,17 +338,17 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.drawCircle(centerX, centerY, radius, TFT_WHITE);
   
   // Draw cardinal directions
-  // 方位角の計算を修正 - 北が上になるように調整
+  // 方位角の計算を修正 - 北が常に上、デバイスの向きを赤い針で表示
   // 方位角は時計回りで、北が0度、東が90度、南が180度、西が270度
   float angle = heading * DEG_TO_RAD; 
   
-  // North - 北を指す針（赤色）
-  // 画面上で北が上になるように描画（0度が上、時計回りに増加）
+  // デバイスの向きを示す針（赤色）- 赤い針を北極星の青いマークに合わせることが目標
+  // 画面上で現在の方位角を表示（0度が上、時計回りに増加）
   int nx = centerX + radius * sin(angle);
   int ny = centerY - radius * cos(angle);
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
   
-  // 北極星の表示（天の北極を示す青いマーク）
+  // 北極星の表示（天の北極を示す青いひし形マーク）- 目標位置
   // 実際の方位角と高度に基づいて表示
   float polarisAzRad = polarisAz * DEG_TO_RAD;
   // 高度を考慮して半径を調整（高度が高いほど中心に近づく）
@@ -358,10 +358,11 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   int px = centerX + radius * sin(polarisAzRad) * altFactor;
   int py = centerY - radius * cos(polarisAzRad) * altFactor;
   
-  // 北極星のマークを描画（青い十字）
+  // 北極星のマークをひし形に変更（より目立つように）
   M5.Display.fillCircle(px, py, 2, TFT_CYAN);
-  M5.Display.drawLine(px-3, py, px+3, py, TFT_CYAN);
-  M5.Display.drawLine(px, py-3, px, py+3, TFT_CYAN);
+  int diamondSize = 4;
+  M5.Display.fillTriangle(px, py-diamondSize, px+diamondSize, py, px, py+diamondSize, TFT_CYAN);
+  M5.Display.fillTriangle(px, py-diamondSize, px-diamondSize, py, px, py+diamondSize, TFT_CYAN);
   
   // Add cardinal direction labels
   M5.Display.setTextColor(TFT_WHITE);
@@ -382,6 +383,12 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   // West label
   M5.Display.setCursor(centerX - radius - 8, centerY - 3);
   M5.Display.print("W");
+  
+  // 極軸合わせの説明を追加（画面下部に小さく表示）
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setCursor(2, M5.Display.height() - 9);
+  M5.Display.setTextSize(1);
+  M5.Display.print("Red=Current Blue=Target");
   
   // Display numerical data below the compass
   int y = centerY + radius + 12;
