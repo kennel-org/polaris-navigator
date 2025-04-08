@@ -724,6 +724,12 @@ void calculateCelestialPositions() {
     Serial.print("° Phase=");
     Serial.println(moonPhase);
   }
+  
+  // デバッグ出力を追加 - 北極星の高度と緯度を比較
+  Serial.print("DEBUG - Latitude: ");
+  Serial.print(latitude);
+  Serial.print(", Polaris Altitude: ");
+  Serial.println(polarisAlt);
 }
 
 void updateDisplay() {

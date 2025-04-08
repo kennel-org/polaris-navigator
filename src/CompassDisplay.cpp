@@ -208,7 +208,7 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   // Draw cardinal directions
   // 方位角の計算を修正 - 北が上になるように調整
   // 方位角は時計回りで、北が0度、東が90度、南が180度、西が270度
-  float angle = -heading * PI / 180.0; 
+  float angle = heading * DEG_TO_RAD; 
   
   // North - 北を指す針（赤色）
   // 画面上で北が上になるように描画（0度が上、時計回りに増加）
@@ -343,7 +343,7 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   // Draw cardinal directions
   // 方位角の計算を修正 - 北が上になるように調整
   // 方位角は時計回りで、北が0度、東が90度、南が180度、西が270度
-  float angle = heading * PI / 180.0; 
+  float angle = heading * DEG_TO_RAD; 
   
   // North - 北を指す針（赤色）
   // 画面上で北が上になるように描画（0度が上、時計回りに増加）
@@ -443,16 +443,26 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   // 背景バー（グレー）
   M5.Display.fillRect(barX, barY, barWidth, barHeight, TFT_DARKGREY);
   
-  // 中央マーカー（白）
-  M5.Display.fillRect(barX - 2, barY + barHeight/2 - 1, barWidth + 4, 2, TFT_WHITE);
+  // 水平マーカー（白）- 0度を示す
+  int horizontalY = barY + barHeight/2; // バーの中央（0度）
+  M5.Display.fillRect(barX - 2, horizontalY - 1, barWidth + 4, 2, TFT_WHITE);
   
   // 目標高度マーカー（シアン）
-  int targetPosY = barY + barHeight - (int)((polarisAlt / 90.0) * barHeight);
+  // -90度から+90度の範囲で計算（0度が中央）
+  // 北極星の仰角（polarisAlt）は観測地点の緯度に近い値になる
+  
+  // 修正：画面座標系では上が小さい値、下が大きい値なので計算を調整
+  float normalizedAlt = (polarisAlt + 90.0) / 180.0; // 0.0（-90度）～1.0（+90度）に正規化
+  int targetPosY = barY + barHeight - (int)(normalizedAlt * barHeight);
   targetPosY = constrain(targetPosY, barY + 2, barY + barHeight - 2);
+  
   M5.Display.fillRect(barX - 2, targetPosY - 1, barWidth + 4, 2, TFT_CYAN);
   
   // 現在の傾きインジケーター（黄色）
-  int currentPosY = barY + barHeight - (int)((pitch / 90.0) * barHeight);
+  // -90度から+90度の範囲で計算（0度が中央）
+  // 修正：画面座標系では上が小さい値、下が大きい値なので計算を調整
+  float normalizedPitch = (pitch + 90.0) / 180.0; // 0.0（-90度）～1.0（+90度）に正規化
+  int currentPosY = barY + barHeight - (int)(normalizedPitch * barHeight);
   currentPosY = constrain(currentPosY, barY + 2, barY + barHeight - 2);
   M5.Display.fillTriangle(
     barX - 4, currentPosY,
