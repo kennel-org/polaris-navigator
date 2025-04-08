@@ -450,20 +450,19 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   // 目標高度マーカー（シアン）
   // -90度から+90度の範囲で計算（0度が中央）
   // 北極星の仰角（polarisAlt）は観測地点の緯度に近い値になる
-  int targetPosY = horizontalY - (int)((polarisAlt / 90.0) * barHeight/2);
-  targetPosY = constrain(targetPosY, barY + 2, barY + barHeight - 2);
   
-  // デバッグ出力
-  Serial.print("Polaris Alt: ");
-  Serial.print(polarisAlt);
-  Serial.print(", Target Y: ");
-  Serial.println(targetPosY);
+  // 修正：画面座標系では上が小さい値、下が大きい値なので計算を調整
+  float normalizedAlt = (polarisAlt + 90.0) / 180.0; // 0.0（-90度）～1.0（+90度）に正規化
+  int targetPosY = barY + barHeight - (int)(normalizedAlt * barHeight);
+  targetPosY = constrain(targetPosY, barY + 2, barY + barHeight - 2);
   
   M5.Display.fillRect(barX - 2, targetPosY - 1, barWidth + 4, 2, TFT_CYAN);
   
   // 現在の傾きインジケーター（黄色）
   // -90度から+90度の範囲で計算（0度が中央）
-  int currentPosY = horizontalY - (int)((pitch / 90.0) * barHeight/2);
+  // 修正：画面座標系では上が小さい値、下が大きい値なので計算を調整
+  float normalizedPitch = (pitch + 90.0) / 180.0; // 0.0（-90度）～1.0（+90度）に正規化
+  int currentPosY = barY + barHeight - (int)(normalizedPitch * barHeight);
   currentPosY = constrain(currentPosY, barY + 2, barY + barHeight - 2);
   M5.Display.fillTriangle(
     barX - 4, currentPosY,
