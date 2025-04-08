@@ -444,16 +444,18 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.fillRect(barX, barY, barWidth, barHeight, TFT_DARKGREY);
   
   // 水平マーカー（白）- 0度を示す
-  int horizontalY = barY + barHeight; // バーの下端（0度）
+  int horizontalY = barY + barHeight/2; // バーの中央（0度）
   M5.Display.fillRect(barX - 2, horizontalY - 1, barWidth + 4, 2, TFT_WHITE);
   
   // 目標高度マーカー（シアン）
-  int targetPosY = barY + barHeight - (int)((polarisAlt / 90.0) * barHeight);
+  // -90度から+90度の範囲で計算（0度が中央）
+  int targetPosY = horizontalY - (int)((polarisAlt / 90.0) * barHeight/2);
   targetPosY = constrain(targetPosY, barY + 2, barY + barHeight - 2);
   M5.Display.fillRect(barX - 2, targetPosY - 1, barWidth + 4, 2, TFT_CYAN);
   
   // 現在の傾きインジケーター（黄色）
-  int currentPosY = barY + barHeight - (int)((pitch / 90.0) * barHeight);
+  // -90度から+90度の範囲で計算（0度が中央）
+  int currentPosY = horizontalY - (int)((pitch / 90.0) * barHeight/2);
   currentPosY = constrain(currentPosY, barY + 2, barY + barHeight - 2);
   M5.Display.fillTriangle(
     barX - 4, currentPosY,
