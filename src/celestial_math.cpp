@@ -57,6 +57,18 @@ void calculatePolePosition(float latitude, float longitude, float *azimuth, floa
   // For the celestial pole, the altitude is equal to the latitude in the northern hemisphere
   // In the southern hemisphere, it's the negative of the latitude
   
+  // デバッグ出力
+  Serial.print("Calculate Pole Position - Latitude: ");
+  Serial.print(latitude);
+  Serial.print(", Longitude: ");
+  Serial.println(longitude);
+  
+  // 緯度が0または未設定の場合、デフォルト値として日本の平均緯度を使用
+  if (latitude < 0.1f && latitude > -0.1f) {
+    Serial.println("Warning: Latitude near zero, using default value for Japan (35.0)");
+    latitude = 35.0f; // 日本の平均緯度
+  }
+  
   if (latitude >= 0) {
     // Northern hemisphere - North Celestial Pole
     *altitude = latitude;
