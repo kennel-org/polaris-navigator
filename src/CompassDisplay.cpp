@@ -192,14 +192,14 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   M5.Display.setTextSize(1);
   
   // Display title
-  M5.Display.setTextColor(TFT_CYAN);
+  M5.Display.setTextColor(TFT_GREEN);
   M5.Display.setCursor(2, 0);
-  M5.Display.println("COMPASS DATA");
+  M5.Display.println("COMPASS");
   M5.Display.setTextColor(TFT_WHITE);
   
-  // Draw compass rose first (in the upper portion of the screen)
+  // Draw compass rose in the center of the screen
   int centerX = M5.Display.width() / 2;
-  int centerY = 45; 
+  int centerY = M5.Display.height() / 2;
   int radius = 25; 
   
   // Draw compass circle
@@ -216,15 +216,12 @@ void CompassDisplay::showCompass(float heading, float pitch, float roll, bool gp
   int ny = centerY - radius * cos(angle);
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
   
-  // 北極星の表示（天の北極を示す青いマーク）
-  // 北極星は常に北（0度）に位置するため、固定位置に表示
-  int px = centerX;
-  int py = centerY - (radius * 0.7);
+  // 北の方向を示すマーク（シンプルな表示）
+  int northX = centerX;
+  int northY = centerY - (radius * 0.7);
   
-  // 北極星のマークを描画（青い十字）
-  M5.Display.fillCircle(px, py, 2, TFT_CYAN);
-  M5.Display.drawLine(px-3, py, px+3, py, TFT_CYAN);
-  M5.Display.drawLine(px, py-3, px, py+3, TFT_CYAN);
+  // 北マークを描画（青い点）
+  M5.Display.fillCircle(northX, northY, 2, TFT_BLUE);
   
   // Add cardinal direction labels
   M5.Display.setTextColor(TFT_WHITE);
@@ -352,9 +349,14 @@ void CompassDisplay::showPolarAlignment(float heading, float polarisAz, float po
   M5.Display.drawLine(centerX, centerY, nx, ny, TFT_RED);
   
   // 北極星の表示（天の北極を示す青いマーク）
-  // 北極星は常に北（0度）に位置するため、固定位置に表示
-  int px = centerX;
-  int py = centerY - (radius * 0.7);
+  // 実際の方位角と高度に基づいて表示
+  float polarisAzRad = polarisAz * DEG_TO_RAD;
+  // 高度を考慮して半径を調整（高度が高いほど中心に近づく）
+  float altFactor = (90.0 - polarisAlt) / 90.0; // 高度が90度で0、0度で1になる係数
+  altFactor = constrain(altFactor, 0.0, 1.0); // 0〜1の範囲に制限
+  
+  int px = centerX + radius * sin(polarisAzRad) * altFactor;
+  int py = centerY - radius * cos(polarisAzRad) * altFactor;
   
   // 北極星のマークを描画（青い十字）
   M5.Display.fillCircle(px, py, 2, TFT_CYAN);

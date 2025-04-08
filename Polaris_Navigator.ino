@@ -680,9 +680,7 @@ void readIMU() {
 
 void calculateCelestialPositions() {
   // Calculate celestial positions based on GPS location and current time
-  if (!gpsValid) {
-    return;  // Need valid GPS data for calculations
-  }
+  // GPSが無効でも最後に記録された緯度経度を使用して計算する
   
   // Calculate magnetic declination for current location
   magDeclination = calculateMagneticDeclination(latitude, longitude);
@@ -1266,9 +1264,7 @@ void loop() {
   // imuFusion.update(deltaTime);
   
   // Calculate celestial positions
-  if (gpsValid) {
-    calculateCelestialPositions();
-  }
+  calculateCelestialPositions();
   
   // LCD更新は一定間隔で実行（ちらつき軽減と応答性のバランス）
   static unsigned long lastDisplayTime = 0;
