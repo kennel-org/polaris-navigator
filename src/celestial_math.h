@@ -9,8 +9,9 @@
 #define CELESTIAL_MATH_H
 
 // Time-related functions
-unsigned long getJulianDate(int year, int month, int day);
-double getJulianCentury(unsigned long jd);
+// Julian date with fractional day component
+double getJulianDate(int year, int month, int day);
+double getJulianCentury(double jd);
 double getSiderealTime(double jd, double longitude);
 
 // Celestial pole calculations
