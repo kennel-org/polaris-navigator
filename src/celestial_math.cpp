@@ -13,19 +13,19 @@
 #define RAD_TO_DEG (180.0 / PI)
 
 // Time-related functions
-unsigned long getJulianDate(int year, int month, int day) {
+double getJulianDate(int year, int month, int day) {
   // Julian Date calculation
   // Valid for dates after 1582-10-15
   int a = (14 - month) / 12;
   int y = year + 4800 - a;
   int m = month + 12 * a - 3;
   
-  unsigned long jd = day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;
+  double jd = day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;
   
   return jd;
 }
 
-double getJulianCentury(unsigned long jd) {
+double getJulianCentury(double jd) {
   // Julian Century since J2000.0
   return (jd - 2451545.0) / 36525.0;
 }
@@ -88,7 +88,7 @@ void calculatePolePosition(float latitude, float longitude, float *azimuth, floa
     int second = 0;
     
     // Calculate Julian Date
-    unsigned long jd = getJulianDate(year, month, day);
+    double jd = getJulianDate(year, month, day);
     jd += (hour / 24.0) + (minute / 1440.0) + (second / 86400.0);
     
     // Calculate Local Sidereal Time
@@ -210,7 +210,7 @@ void calculateMoonPosition(float latitude, float longitude,
   // In a real implementation, consider using a library like Ephem
   
   // Calculate Julian Date
-  unsigned long jd = getJulianDate(year, month, day);
+  double jd = getJulianDate(year, month, day);
   jd += (hour - 12) / 24.0 + minute / 1440.0 + second / 86400.0;
   
   // Calculate days since J2000.0
